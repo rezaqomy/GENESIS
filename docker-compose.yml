@@ -1,0 +1,27 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      GENESIS_DB: /data/genesis.sqlite
+      GENESIS_SEED: ${GENESIS_SEED:-42}
+      GENESIS_ORIGINS: ${GENESIS_ORIGINS:-http://localhost:5173}
+    ports:
+      - "8000:8000"
+    volumes:
+      - genesis-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  frontend:
+    build: ./frontend
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+volumes:
+  genesis-data:

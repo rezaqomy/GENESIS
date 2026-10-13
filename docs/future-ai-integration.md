@@ -1,0 +1,9 @@
+# Future cognition boundary
+
+The Phase 1 policy boundary is `AgentPolicy.decide(Observation) -> AgentIntent`. Observations are independent copies containing self physiology/inventory, visible terrain, visible resources and occupied positions. The policy never receives the mutable world or the engine. AgentIntent proposes MOVE/GATHER/EAT/REST/IDLE and a target; the authoritative resolver validates it at execution time.
+
+An asynchronous LLM policy should be scheduled outside the synchronous engine. The service can publish observations to a bounded cognition task, keyed by run ID, agent ID and observation tick. Results enter a FIFO command/intent mailbox with those identifiers. At a tick boundary, the writer rejects results for old runs, dead actors, expired observations or unsupported actions, then applies the normal validator against current state. Missing/late/malformed proposals use a documented deterministic fallback (rule policy or IDLE); inference must never block the world clock or mutate world state.
+
+Record accepted cognition proposals and their consumption tick in events before applying them. LLM output is not inherently deterministic: reproducible experiments must replay recorded proposals, not call the model again. Existing mutation-event replay already works independently of any policy.
+
+Phase 2 can add Ollama, JSON output validation and a bounded scheduler. Phase 3 can supply serialized memory summaries to cognition and add explicit observation-visible relationship facts, keeping memory persistence separate from physical authority. Phase 4 can add new intents with deterministic validators/resolvers for trade, cooperation and communication, plus new reducer events. There is no LLM client, memory framework, relationship simulator or distributed queue in Phase 1.
