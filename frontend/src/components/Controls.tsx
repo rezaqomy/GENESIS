@@ -6,16 +6,16 @@ export function Controls() {
   const [seed, setSeed] = useState('42')
   const world = snapshot?.state
   const alive = world ? Object.values(world.agents).filter(a => a.alive).length : 0
-  const food = world ? Object.values(world.resources).filter(r => r.kind === 'food').reduce((s,r) => s+r.quantity,0) : 0
+  const food = world?.config.infinite ? Object.values(world.settlements).reduce((s,v)=>s+v.food_reserves,0) : world ? Object.values(world.resources).filter(r => r.kind === 'food').reduce((s,r) => s+r.quantity,0) : 0
   const running = world?.status === 'running'
   const disabled = pending || connection !== 'live' || !snapshot
   const validSeed = /^\d+$/.test(seed) && Number(seed) <= 4294967295
   return <aside className="controls panel">
     <div className="brand"><div className="brand-icon">✳</div><div><h1>GENESIS</h1><span>A LIVING ARTIFICIAL WORLD</span></div></div>
-    <div className="experiment"><span className="eyebrow">EXPERIMENT 001</span><p>Small lives.<br/>Emergent possibilities.</p><span className="phase-label">PHASE 1 <i /> RULE-BASED AGENTS</span></div>
+    <div className="experiment"><span className="eyebrow">EXPERIMENT 001</span><p>Small lives.<br/>Emergent possibilities.</p><span className="phase-label">PHASE 2 <i /> UTILITY-DRIVEN LIVES</span></div>
     <div className="section-line"><span className="eyebrow">WORLD STATE</span><span className={`status-pill ${running ? 'active' : ''}`}>{running ? 'RUNNING' : 'PAUSED'}</span></div>
     <div className="tick"><span>{String(world?.tick ?? 0).padStart(5,'0')}</span><small>SIMULATION TICK</small></div>
-    <div className="stats"><div><span className="stat-icon">♙</span><b>{alive}<small> / {world?.config.agent_count ?? 10}</small></b><label>Living agents</label></div><div><span className="stat-icon berry">✿</span><b>{food}</b><label>Available food</label></div></div>
+    <div className="stats"><div><span className="stat-icon">♙</span><b>{alive}<small> / {world?.config.agent_count ?? 10}</small></b><label>Living agents</label></div><div><span className="stat-icon berry">✿</span><b>{food}</b><label>Food reserves</label></div></div>
     <div className="divider" />
     <span className="eyebrow">SIMULATION</span>
     <button className="primary mt-4" disabled={disabled} onClick={() => void control(running ? 'pause' : world?.tick ? 'resume' : 'start')}>{running ? 'Ⅱ Pause world' : '▶ '+(world?.tick ? 'Resume world' : 'Start world')}</button>

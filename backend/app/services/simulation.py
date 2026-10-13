@@ -1,14 +1,18 @@
 import asyncio
 import contextlib
 import fcntl
+import json
 from collections import deque
 from pathlib import Path
 
+from app.simulation.chunks.access import ChunkCache, WorldAccess
 from app.simulation.engine.core import Engine
-from app.simulation.events.reducer import state_hash
+from app.simulation.events.reducer import authoritative_state, state_hash
 from app.simulation.models.domain import WorldConfig
 from app.simulation.persistence.sqlite import EventStore
 from app.simulation.policies.rules import RulePolicy
+from app.simulation.policies.utility import UtilityPolicy
+from app.simulation.settlements.environment import conditions
 
 
 class SimulationService:
@@ -26,6 +30,16 @@ class SimulationService:
                 raise RuntimeError("A Genesis process already owns this database") from None
         self.store = EventStore(database)
         self.engine = Engine(config, self.store, RulePolicy(), restore=True)
+        if config.infinite and not self.engine.world.config.infinite:
+            # Start an upgraded run while preserving every legacy event/run for replay.
+            self.engine.reset(config)
+        if self.engine.world.config.infinite:
+            self.engine.policy = UtilityPolicy(
+                self.engine.world.config.utility_weights.model_dump()
+            )
+        self.visual_cache = ChunkCache(
+            self.engine.world.config.seed, self.engine.world.config.generator_version, 64
+        )
         self.commands = asyncio.Queue()
         self.subscribers: set[asyncio.Queue] = set()
         self.recent = deque(maxlen=250)
@@ -39,25 +53,87 @@ class SimulationService:
             self.remember(self.store.events(self.engine.run_id, min(r[0] for r in rows) - 1))
         self.task: asyncio.Task | None = None
 
+    @staticmethod
+    def readable_event(event):
+        data = event.model_dump(mode="json")
+        data["payload"] = {
+            key: value
+            for key, value in data["payload"].items()
+            if key in ("message", "action", "goal", "factors")
+        }
+        return data
+
     def remember(self, events):
         for e in events:
             if "message" in e.payload:
-                self.recent.append(e.model_dump(mode="json"))
+                self.recent.append(self.readable_event(e))
 
-    def snapshot(self):
-        return {
-            "type": "snapshot",
+    def snapshot(self, update=False, new_events=None):
+        world = self.engine.world
+        metrics = {
+            **self.engine.metrics,
+            "active_chunks": len(self.engine.access.active_keys()) if world.config.infinite else 1,
+            "loaded_chunks": len(self.engine.access.cache.entries) if world.config.infinite else 1,
+            "visual_cached_chunks": len(self.visual_cache.entries),
+            "payload_bytes": 0,
+        }
+        message = {
+            "type": "entities" if update and world.config.infinite else "snapshot",
             "run_id": self.engine.run_id,
             "sequence_number": self.engine.sequence,
             "tick_ms": 500 / self.engine.world.speed,
-            "state": self.engine.world.model_dump(mode="json"),
+            "state": authoritative_state(world)
+            if world.config.infinite
+            else world.model_dump(mode="json"),
+            "environment": conditions(world.config.seed, world.tick),
+            "metrics": metrics,
             "state_hash": state_hash(self.engine.world),
-            "events": list(self.recent),
+            "events": [self.readable_event(e) for e in new_events if "message" in e.payload]
+            if new_events is not None
+            else (list(self.recent)[-40:] if update else list(self.recent)),
+        }
+        message["metrics"]["payload_bytes"] = len(json.dumps(message, separators=(",", ":")))
+        return message
+
+    def chunk_projection(self, cx: int, cy: int):
+        return WorldAccess(self.engine.world, self.visual_cache).projection(cx, cy)
+
+    def chunk_message(self, coordinates: list[tuple[int, int]]):
+        chunks = []
+        codes = {
+            "grass": "g",
+            "forest": "f",
+            "water": "w",
+            "rock": "r",
+            "soil": "s",
+            "sand": "a",
+            "mountain": "m",
+            "path": "p",
+        }
+        for cx, cy in coordinates:
+            chunk = self.chunk_projection(cx, cy)
+            chunks.append(
+                {
+                    "key": chunk.key,
+                    "cx": cx,
+                    "cy": cy,
+                    "generator_version": chunk.generator_version,
+                    "terrain": "".join(codes[t.terrain.value] for t in chunk.tiles),
+                    "walkable": "".join("1" if t.walkable else "0" for t in chunk.tiles),
+                    "resources": {k: r.model_dump(mode="json") for k, r in chunk.resources.items()},
+                }
+            )
+        return {
+            "type": "chunks",
+            "run_id": self.engine.run_id,
+            "tick": self.engine.world.tick,
+            "sequence_number": self.engine.sequence,
+            "chunks": chunks,
         }
 
     def publish(self, events):
         self.remember(events)
-        message = self.snapshot()
+        message = self.snapshot(update=True, new_events=events)
         for queue in self.subscribers:
             # Slow clients receive a fresh full state; they can retrieve older events by sequence.
             if queue.full():
@@ -97,6 +173,7 @@ class SimulationService:
                     ]
                     self.store.append(events[-1:])
                     self.recent.clear()
+                    self.visual_cache = ChunkCache(config.seed, config.generator_version, 64)
                 else:
                     events = self.engine.command(name, value)
                 self.publish(events)

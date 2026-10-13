@@ -1,43 +1,39 @@
-# Genesis architecture
+# Genesis Phase 2 architecture
 
-Genesis has one authoritative world per process/database. Python 3.12 owns integer tile positions, drives, inventories, resources and clock controls. React only sends commands and displays confirmed state. There is no LLM inference.
+One Python writer owns integer positions, physiology, psychology, goals, inventories, settlements, construction and sparse world modifications. React only displays confirmed state and sends controls or read-only viewport requests. No LLM is required.
 
-The pipeline is `WorldState → Observation → AgentPolicy → AgentIntent → validator → resolver → mutation events → SQLite → WebSocket → PixiJS`.
+`WorldState → copied Observation → policy → proposed AgentIntent/Decision → validation → stable ordered resolution → mutation events → SQLite → WebSocket → PixiJS`
 
-- `simulation/models`: strict Pydantic v2 domain types.
-- `simulation/engine`: seeded generation and synchronous fixed-step state transitions.
-- `simulation/observation`: copied local perception, with Manhattan sight radius 8.
-- `simulation/policies`: the small policy protocol and deterministic rule policy.
-- `simulation/pathfinding`: BFS with a fixed north/east/south/west neighbor order.
-- `simulation/actions`: preconditions, deterministic action resolution and physiology.
-- `simulation/events`: versioned events, pure state reducer and canonical SHA256 hashing.
-- `simulation/persistence`: append-only SQLite log and periodic snapshots.
-- `services/simulation`: asyncio pacing, FIFO command queue and subscriber queues.
-- `api`: request and response contracts. FastAPI lifespan starts and stops the writer.
-- `frontend/src/game`: procedural terrain/characters, camera and movement interpolation.
+## Infinite terrain and lifecycle
 
-## Writer and clock
+Generator v2 maps absolute signed tile coordinates to coherent elevation/moisture/river noise, then resources. Chunk size is fixed at 32. Python floor division gives correct negative coordinates. The seed and generator version define base terrain; chunk creation order has no effect. A designed starter clearing provides a viable common camp without forcing later agent choices.
 
-One service task applies commands in FIFO arrival order. Every tick synchronously advances physiology, freezes observations, calls policies, validates and resolves intents in lexicographic agent ID order, regenerates resources, logs mutations, advances tick and publishes. No awaits occur inside a state transition. Commands can also be processed while paused. Step is accepted only when paused. Start/resume is idempotent. Speed changes only wall-clock pacing; each tick uses identical integer rules. The base interval is 500 ms plus computation time; the clock never skips simulation ticks to catch up with rendering.
+WorldAccess owns a bounded LRU base-chunk cache. Nearby observation queries activate required chunks. `active_radius` defines the agent-centered simulation interest set reported in instrumentation; static terrain needs no tick simulation. Resource regeneration is lazy everywhere: elapsed global regeneration boundaries are added to the last harvested quantity. A completed regeneration modification is pruned by the writer. Camera projections use an entirely separate visual LRU cache; no policy sees camera state. There is no inactive agent simulation: all persistent living agents remain active wherever they travel. Persistent buildings receive cheap deterministic maintenance/farm/fuel updates regardless of camera or chunk activation.
 
-A POSIX advisory file lock rejects a second server owning the same database. Use one Uvicorn worker. HTTP and all WebSocket clients share the same service. A restart restores the latest run and records a pause command, preserving a reviewable state rather than advancing while nobody is watching.
+Generated tiles/resources are excluded from snapshots and canonical hashes. Sparse terrain overrides and resource quantities/harvest ticks, buildings, settlements and agent knowledge remain authoritative. Unloading a base chunk loses no modifications. WorldAccess reconstructs collision including completed walls/towers/bridges. Navigation uses a bounded coarse chunk corridor and local A* against observed terrain, recalculated each decision. Exploration excludes a short recent trail to escape repeated frontiers along long obstacles. Coarse plans are intentions, not knowledge of unseen terrain.
 
-## Event sourcing
+## Cognition and settlement modules
 
-WORLD_CREATED records the complete generated state, configuration and seed. COMMAND_ACCEPTED records controls and resulting clock values. Every tick records ACTION_RESOLVED/REJECTED for analysis, AGENT_UPDATED for every agent, RESOURCE_UPDATED for changed resources, AGENT_DIED, and TICK_COMPLETED with a canonical state hash. These after-image mutation events are sufficient to reconstruct state without policies, generation or random draws. Event UUIDs/run IDs are metadata and are excluded from the state hash.
+Seeded personality traits are stable normalized values. Psychology changes from local warmth/protection, compatible companions, actual relationships, crowding, exposure and time away. A spatial bucket index bounds companion queries. Per-agent knowledge retains 128 recent chunks, 48 discoveries, 16 food observations and 12 recent movement positions; the world retains 1,024 explored chunk keys for the minimap. Eviction forgets knowledge, not persistent physical changes.
 
-Each tick's events and optional snapshot commit in one SQLite transaction. Sequence numbers are unique per run; the log has triggers rejecting UPDATE/DELETE. Snapshots every 25 ticks (and at creation) contain state plus hash and a sequence cursor. Replay from the full log validates each completed tick hash; snapshot replay validates the snapshot then subsequent tick hashes. Reset creates a new run, preserving old runs. Both modes must give the same final hash.
+UtilityPolicy scores need, trait, reward, travel, risk, social and scarcity factors. Run configuration records weights. Invalid goals expose reasons. Goals commit for six ticks with .09 switching hysteresis; urgent hunger/exhaustion overrides it. Repeated rejected actions release commitment and cool the failed goal down. Exploration budgets increase with independence. Resupply, danger, loneliness and cargo motivate return. Policies receive copied observations and public settlement project/status facts, never unrestricted mutable state.
 
-## Transport
+Construction validation owns material availability, physical access, recipes, energy, tile suitability, capacity and occupied sites. Materials come from inventory plus a nearby communal cache. Distant projects require physical withdrawal/hauling of their materials. Four build actions complete a structure; only creation charges materials. Building effects depend on completed, durable structures and distance. Conditional remote-camp migration updates membership and home; it is not an identity-based assigned role.
 
-GET `/api/world` and WS `/ws/simulation` share a typed full snapshot: run ID, event sequence, tick interval, state, hash and up to 250 recent readable events. Every subsequent WS message is a complete state, intentionally favoring reliable resynchronization over premature delta complexity for 1,200 tiles and ten agents. Queue capacity is one: slow clients discard an obsolete update and receive the latest full state. `/api/events?run_id=...&after=...&limit=...` provides archival sequence pagination.
+## Writer, replay and compatibility
 
-The browser reconnects with bounded exponential backoff and rejects older sequence numbers for the same run. It keeps up to 1,500 journal events in memory. Reconnection supplies recent events; older history is available through the archive API. A client WS text message requests another snapshot. Clients cannot send intents or mutate state over WS.
+One asyncio task processes FIFO controls and synchronously executes ticks without awaits/mutations from other tasks. Stable lexicographic actor order resolves resource/tile conflicts. Speed changes wall-clock pacing only. A database file lock prevents independent writer instances. Restart restores committed state and records a pause.
 
-## Rendering
+WORLD_CREATED records configuration and initial authoritative state. COMMAND_ACCEPTED records controls. Agent after-images carry traits/psychology/decisions/knowledge. RESOURCE_MODIFIED/RESTORED, TERRAIN_MODIFIED, BUILDING_UPDATED, SETTLEMENT_UPDATED and WORLD_METADATA supply the remaining mutations. Each TICK_COMPLETED stores canonical SHA256. Replay reduces events without policies or random draws; generated terrain remains reconstructible from seed/version. Transactions atomically append a tick and optional snapshot every 25 ticks. Append-only triggers reject updates/deletes. Full and snapshot replay verify hashes. UUIDs, caches, camera state and performance timings do not enter the hash.
 
-Integer positions are projected to 24-pixel tiles. Confirmed moves interpolate from the current rendered position to the new target over one tick interval; resets snap and rebuild the scene, pause snaps to confirmed positions, and single-step animates a confirmed move. Graphics, labels and animation have no simulation effect. Original procedural graphics require no external art assets. Mouse wheel zoom preserves the cursor's world position; drag pans; center and fit controls restore the view.
+Finite Phase 1 runs use RulePolicy/BFS and the original canonical field set so old hashes remain valid. Config.infinite defaults false in the domain; the app defaults true. Upgrading a restored finite run starts a new infinite run, preserving archived logs.
 
-## Scope and limits
+## Streaming and rendering
 
-Local experimental application, without authentication or multi-user permissions. Full-state messages and synchronous SQLite/BFS are appropriate at Phase 1 scale, not a claim of large-scale throughput. A persistence error stops the writer and health reports unavailable; restart recovers the last committed state. No trades, conversations, relationships, beliefs or hidden LLM decisions are simulated.
+An initial snapshot contains full authoritative entities/metadata and recent readable events. Subsequent `entities` packets contain authoritative after-images with no generated chunks. Updates include only the new readable events; persisted intent/state payloads stay in SQLite and the archive API instead of being repeated in the live journal. The queue retains only the latest state, so missed updates recover without applying fragile deltas. Read-only viewport requests (max25 chunks) receive separate compact terrain/walkability/resource messages. Per-connection send locking serializes replies and updates. Chunk packets carry run/sequence IDs; frontend rejects other runs and stale entity sequences. Reconnection sends a snapshot and re-requests the viewport.
+
+The frontend retains 48 chunk projections. Pixi culls chunk nodes/resources/humans outside the viewport and retains sprites between entity updates. Backend coordinates map to 32-pixel tiles; interpolation affects visualization only. Pause/reset/reconnect resynchronize positions. Camera smoothing, follow, settlement/explorer jumps and explored-region minimap have no simulation effect. Local original PNGs load through a manifest with nearest filtering and explicit missing-asset fallbacks. Day/night/weather, water, tree sway, construction/gathering effects and warm firelight are lightweight configurable visual effects.
+
+## Performance and limits
+
+Tick and decision durations, active/base/visual-cache chunk counts and JSON payload size are non-authoritative service metrics. The frontend measures FPS and rendered chunks. Ten agents are supported; full entity after-images and synchronous SQLite need future benchmarking before claiming 100-agent throughput. Resource depletion and construction are real; survival is not guaranteed. This is a local sandbox without authentication, distant omniscient navigation, combat, dialogue or multi-settlement politics.

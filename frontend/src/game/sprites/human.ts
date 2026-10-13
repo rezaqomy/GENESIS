@@ -1,60 +1,39 @@
-import { Container, Graphics, Rectangle, Text } from 'pixi.js'
+import { Container, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js'
 import type { Agent } from '../../types/world'
-
+import type { GameAssets } from '../rendering/assets'
 export class Human {
-  node = new Container()
-  body = new Graphics()
-  ring = new Graphics()
-  label: Text
-  indicator: Text
-  from = { x: 0, y: 0 }
-  to = { x: 0, y: 0 }
-  progress = 1
-  direction = { x: 0, y: 1 }
-  agent: Agent
-  constructor(agent: Agent, select: (id: string) => void) {
-    this.agent = agent
-    this.node.addChild(this.ring, this.body)
-    this.label = new Text({ text: agent.name, style: { fontFamily: 'monospace', fontSize: 9, fontWeight: 'bold', fill: '#fff5dc', stroke: { color: '#243c32', width: 3 } } })
-    this.label.anchor.set(.5, 1); this.label.y = -21
-    this.indicator = new Text({ text: '', style: { fontFamily: 'monospace', fontSize: 9, fill: '#fff0b2', stroke: { color: '#243c32', width: 3 } } })
-    this.indicator.anchor.set(.5, 0); this.indicator.y = 4
-    this.node.addChild(this.label, this.indicator)
-    this.node.eventMode = 'static'; this.node.cursor = 'pointer'
-    this.node.hitArea = new Rectangle(-13, -24, 26, 33)
-    this.node.on('pointertap', () => select(agent.id))
+  node=new Container();ring=new Graphics();body=new Container();label:Text;indicator:Text
+  sprite:Sprite|null=null;frames:Texture[]=[];fallback=new Graphics()
+  from={x:0,y:0};to={x:0,y:0};progress=1;direction=0;agent:Agent
+  constructor(agent:Agent,assets:GameAssets,select:(id:string)=>void) {
+    this.agent=agent
+    const sheet=assets.get(`character_${Number(agent.id.slice(-2))%4}`)
+    if(sheet) {
+      for(let row=0;row<32;row++)for(let col=0;col<4;col++)this.frames.push(new Texture({source:sheet.source,frame:new Rectangle(col*48,row*48,48,48)}))
+      this.sprite=new Sprite(this.frames[0]);this.sprite.anchor.set(.5,1);this.sprite.width=48;this.sprite.height=48
+      this.body.addChild(this.sprite)
+    }else this.body.addChild(this.fallback)
+    this.node.addChild(this.ring,this.body)
+    this.label=new Text({text:agent.name,style:{fontFamily:'monospace',fontSize:10,fontWeight:'bold',fill:'#fff5d8',stroke:{color:'#172f29',width:3}}})
+    this.label.anchor.set(.5,1);this.label.y=-37
+    this.indicator=new Text({text:'',style:{fontFamily:'monospace',fontSize:8,fill:'#ffdfa0',stroke:{color:'#24372f',width:3}}})
+    this.indicator.anchor.set(.5,0);this.indicator.y=3
+    this.node.addChild(this.label,this.indicator)
+    this.node.eventMode='static';this.node.cursor='pointer';this.node.hitArea=new Rectangle(-14,-37,28,43)
+    this.node.on('pointertap',()=>select(agent.id))
   }
-  draw(time: number, selected: boolean, running: boolean) {
-    const a = this.agent
-    const walking = this.progress < 1
-    const swing = walking ? Math.sin(time * 13) * 2.5 : 0
-    const bob = a.alive && running ? Math.sin(time * (walking ? 26 : 2) + Number(a.id.slice(-2))) * (walking ? .6 : .35) : 0
-    const g = this.body.clear()
-    g.ellipse(0, 0, 8, 3).fill({ color: '#18372a', alpha: .28 })
-    this.body.y = bob
-    g.rect(-5, -6, 4, 7 + swing).fill('#293e50')
-    g.rect(1, -6, 4, 7 - swing).fill('#293e50')
-    g.rect(-6, 0 + swing, 5, 2).fill('#1c2731')
-    g.rect(1, 0 - swing, 5, 2).fill('#1c2731')
-    g.rect(-6, -14, 12, 10).fill(a.alive ? a.visual_color : '#758479')
-    g.rect(-7, -13 + swing, 3, 7).fill(a.visual_color)
-    g.rect(4, -13 - swing, 3, 7).fill(a.visual_color)
-    const skin = ['#efc499', '#c99872', '#a77050', '#e0ae87'][Number(a.id.slice(-2)) % 4]
-    g.rect(-7, -7 + swing, 3, 3).fill(skin); g.rect(4, -7 - swing, 3, 3).fill(skin)
-    g.rect(-4, -21, 8, 8).fill(skin)
-    g.rect(-5, -23, 10, 4).fill(['#553d32', '#b0793f', '#333438'][Number(a.id.slice(-2)) % 3])
-    g.rect(-5, -20, 2, 3).fill('#553d32')
-    if (this.direction.y >= 0) {
-      const offset = this.direction.x * 2
-      g.rect(-2 + offset, -18, 1, 1).fill('#292d35'); g.rect(2 + offset, -18, 1, 1).fill('#292d35')
-    } else { g.rect(-4, -20, 8, 5).fill('#553d32') }
-    if (a.current_action === 'GATHER') g.rect(6, -9, 4, 3).fill('#e093a0')
-    this.ring.clear()
-    if (selected) {
-      this.ring.ellipse(0, 0, 12, 5).stroke({ color: '#fff0af', width: 1.6 })
-      this.ring.poly([-3,-30, 3,-30, 0,-26]).fill('#fff0af')
+  draw(time:number,selected:boolean,running:boolean,mining=false) {
+    const a=this.agent,walking=this.progress<1||a.current_action==='MOVE'
+    let action=walking?1:0
+    if(!walking)action=({GATHER:mining?3:2,BUILD:4,CRAFT:5,REST:6,SOCIALIZE:7,REFUEL:2,STORE:2,WITHDRAW:2,EAT:2,IDLE:0,MOVE:1} as Record<string,number>)[a.current_action]??0
+    const frame=running||this.progress<1?Math.floor(time*(action===1?7:3))%4:0
+    if(this.sprite)this.sprite.texture=this.frames[(this.direction*8+action)*4+frame]
+    else {
+      const g=this.fallback.clear();g.rect(-5,-10,4,10).fill('#2f4252');g.rect(1,-10,4,10).fill('#2f4252');g.rect(-7,-24,14,15).fill(a.visual_color);g.rect(-5,-33,10,10).fill('#dfb18c');g.rect(-6,-35,12,4).fill('#684535')
     }
-    this.indicator.text = !a.alive ? '†' : { MOVE: '', GATHER: 'gathering', EAT: 'eating', REST: 'z z', IDLE: '' }[a.current_action]
-    this.node.alpha = a.alive ? 1 : .5
+    this.ring.clear().ellipse(0,0,10,3).fill({color:'#152820',alpha:.25})
+    if(selected){this.ring.ellipse(0,0,14,5).stroke({color:'#f6dda0',width:2});this.ring.poly([-3,-45,3,-45,0,-40]).fill('#ffe8ae')}
+    this.indicator.text=!a.alive?'†':({GATHER:mining?'mining':'gathering',BUILD:'building',CRAFT:'crafting',REST:'z z',SOCIALIZE:'chatting',REFUEL:'tending fire',EAT:'eating',STORE:'storing',WITHDRAW:'resupply',MOVE:'',IDLE:''} as Record<string,string>)[a.current_action]??''
+    this.node.alpha=a.alive?1:.4
   }
 }

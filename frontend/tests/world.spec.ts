@@ -35,11 +35,20 @@ test('living world, controls, selection, camera, synchronization and replay', as
   if (!box) throw new Error('Canvas has no bounds')
   before = await (await request.get('/api/world')).json()
   const a = before.state.agents['agent-00']
-  const scale = Math.min((box.width-50)/960,(box.height-60)/720)
+  const bounds = await page.locator('.world-canvas').evaluate(el => ({left:Number((el as HTMLElement).dataset.cameraLeft),top:Number((el as HTMLElement).dataset.cameraTop),right:Number((el as HTMLElement).dataset.cameraRight),bottom:Number((el as HTMLElement).dataset.cameraBottom)}))
+  const tileWidth = box.width/(bounds.right-bounds.left), tileHeight=box.height/(bounds.bottom-bounds.top)
   // Click the human's head in the fitted world, exercising Pixi's hit testing.
-  await page.mouse.click(box.x+(box.width-960*scale)/2+(a.position.x*24+12)*scale,
-    box.y+(box.height-720*scale)/2+(a.position.y*24+5)*scale)
+  await page.mouse.click(box.x+(a.position.x+.5-bounds.left)*tileWidth,
+    box.y+(a.position.y+.4-bounds.top)*tileHeight)
   await expect(page.locator('.agent-profile h2')).toHaveText('Ada')
+  await page.getByRole('button', {name:'Decision',exact:true}).click()
+  expect(await page.locator('.utility-list details').count()).toBeGreaterThanOrEqual(13)
+  await page.getByRole('button', {name:'Personality',exact:true}).click()
+  await expect(page.locator('.inspector-content .meter')).toHaveCount(10)
+  await page.getByRole('button', {name:'Overview',exact:true}).click()
+  await expect(page.getByRole('img',{name:'Explored world minimap'})).toBeVisible()
+  await page.getByRole('button', {name:'Follow agent',exact:true}).click()
+  await expect(page.getByRole('button', {name:'Follow agent',exact:true})).toHaveClass(/chosen/)
   await page.mouse.move(box.x+box.width/2, box.y+box.height/2)
   await page.mouse.wheel(0,-200)
   await page.mouse.down(); await page.mouse.move(box.x+box.width/2+40,box.y+box.height/2+20); await page.mouse.up()
@@ -86,4 +95,47 @@ test('living world, controls, selection, camera, synchronization and replay', as
   expect(reset.run_id).not.toBe(final.run_id)
   await expect(page.locator('.agent-profile')).toHaveCount(0)
   expect(errors).toEqual([])
+})
+
+test('signed viewport streaming is independent of simulation and settlement focus works', async ({ page, request }) => {
+  await request.post('/api/simulation/reset', {data:{seed:42}})
+  const chunks: string[]=[]
+  page.on('websocket',socket=>socket.on('framereceived',({payload})=>{
+    if(typeof payload !== 'string') return
+    const p=JSON.parse(payload)
+    if(p.type==='chunks') chunks.push(...p.chunks.map((c:{key:string})=>c.key))
+  }))
+  await page.goto('/')
+  await expect(page.getByText('Connected to simulation')).toBeVisible()
+  await expect(page.getByText('Preparing your world…')).toHaveCount(0)
+  await expect.poll(()=>chunks.length).toBeGreaterThan(0)
+  const before:Snapshot=await (await request.get('/api/world')).json()
+  const box=await page.locator('canvas').boundingBox()
+  if(!box) throw new Error('Missing world canvas')
+  for(let i=0;i<4;i++) {
+    await page.mouse.move(box.x+60,box.y+box.height/2)
+    await page.mouse.down()
+    await page.mouse.move(box.x+box.width-60,box.y+box.height/2,{steps:8})
+    await page.mouse.up()
+    await page.waitForTimeout(350)
+  }
+  await expect.poll(()=>chunks.some(key=>Number(key.split(',')[0])<=-2)).toBeTruthy()
+  const after:Snapshot=await (await request.get('/api/world')).json()
+  expect(after.state_hash).toBe(before.state_hash)
+  expect(after.state.explored_chunks).toEqual(before.state.explored_chunks)
+  await page.getByRole('button',{name:'⌖ Hearthgrove'}).click()
+  await page.waitForTimeout(500)
+  await page.locator('.settlement-members button').filter({hasText:'Mira'}).click()
+  await expect(page.locator('.agent-profile h2')).toHaveText('Mira')
+  await page.getByRole('button',{name:'Decision',exact:true}).click()
+  expect(await page.locator('.utility-list details').count()).toBe(0) // No policy tick has occurred.
+  await page.getByRole('button',{name:'↦ Advance one tick'}).click()
+  await expect.poll(()=>page.locator('.utility-list details').count()).toBeGreaterThanOrEqual(13)
+  await page.locator('.utility-list details').first().locator('summary').click()
+  await expect(page.locator('.utility-list details[open]')).toBeVisible()
+  await page.getByRole('button',{name:'Effects on'}).click()
+  await expect(page.getByRole('button',{name:'Effects off'})).toBeVisible()
+  await page.locator('.performance summary').click()
+  await expect(page.locator('.performance')).toContainText('0 missing assets')
+  await page.screenshot({path:'../artifacts/genesis-decisions.png',fullPage:true})
 })

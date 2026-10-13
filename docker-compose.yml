@@ -4,9 +4,10 @@ services:
     environment:
       GENESIS_DB: /data/genesis.sqlite
       GENESIS_SEED: ${GENESIS_SEED:-42}
+      GENESIS_INFINITE: ${GENESIS_INFINITE:-1}
       GENESIS_ORIGINS: ${GENESIS_ORIGINS:-http://localhost:5173}
     ports:
-      - "8000:8000"
+      - "${GENESIS_BACKEND_PORT:-8000}:8000"
     volumes:
       - genesis-data:/data
     healthcheck:
@@ -19,7 +20,7 @@ services:
     environment:
       BACKEND_URL: http://backend:8000
     ports:
-      - "5173:5173"
+      - "${GENESIS_FRONTEND_PORT:-5173}:5173"
     depends_on:
       backend:
         condition: service_healthy

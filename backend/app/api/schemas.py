@@ -22,6 +22,8 @@ class Snapshot(Model):
     state: WorldState
     state_hash: str
     events: list[WorldEvent]
+    environment: dict = Field(default_factory=dict)
+    metrics: dict = Field(default_factory=dict)
 
 
 class HealthResponse(Model):

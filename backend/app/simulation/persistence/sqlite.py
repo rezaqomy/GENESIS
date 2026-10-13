@@ -1,7 +1,7 @@
 import json
 import sqlite3
 
-from app.simulation.events.reducer import WorldEvent, reduce_event, state_hash
+from app.simulation.events.reducer import WorldEvent, authoritative_state, reduce_event, state_hash
 from app.simulation.models.domain import WorldState
 
 
@@ -50,7 +50,7 @@ class EventStore:
                         e.run_id,
                         e.sequence_number,
                         snapshot.tick,
-                        snapshot.model_dump_json(),
+                        json.dumps(authoritative_state(snapshot)),
                         state_hash(snapshot),
                     ),
                 )

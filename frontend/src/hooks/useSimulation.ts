@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useWorld } from '../stores/world'
-import type { Snapshot } from '../types/world'
+import { setStream } from '../api/stream'
+import type { ChunkMessage, Snapshot } from '../types/world'
 export function useSimulation() {
   useEffect(() => {
     let socket: WebSocket | null = null
@@ -12,14 +13,19 @@ export function useSimulation() {
       if (closed || !navigator.onLine) return
       const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/simulation`)
       socket = ws
-      ws.onopen = () => { attempts = 0; lastReply = Date.now(); useWorld.setState({ connection: 'live', error: null }) }
+      ws.onopen = () => { setStream(ws); attempts = 0; lastReply = Date.now(); useWorld.setState({ connection: 'live', error: null }) }
       ws.onmessage = event => {
         lastReply = Date.now()
-        try { useWorld.getState().accept(JSON.parse(event.data) as Snapshot) }
+        try {
+          const packet=JSON.parse(event.data) as Snapshot|ChunkMessage
+          if(packet.type==='chunks')useWorld.getState().acceptChunks(packet)
+          else useWorld.getState().accept(packet)
+        }
         catch { useWorld.setState({ error: 'Invalid state update received' }) }
       }
       ws.onclose = () => {
         if (closed) return
+        setStream(null)
         useWorld.setState({ connection: 'reconnecting' })
         clearTimeout(timer)
         timer = setTimeout(connect, Math.min(5000, 800 * 2 ** attempts++))
@@ -37,7 +43,7 @@ export function useSimulation() {
     }, 10000)
     connect()
     return () => {
-      closed = true; clearTimeout(timer); clearInterval(heartbeat); socket?.close()
+      closed = true; setStream(null); clearTimeout(timer); clearInterval(heartbeat); socket?.close()
       window.removeEventListener('offline', offline); window.removeEventListener('online', online)
     }
   }, [])

@@ -28,6 +28,62 @@ COLORS = [
 
 
 def generate_world(config: WorldConfig) -> WorldState:
+    if config.infinite:
+        from app.simulation.chunks.access import WorldAccess
+
+        world = WorldState(config=config, tiles=[], agents={}, resources={})
+        from app.simulation.models.domain import Building, Inventory, Settlement
+        from app.simulation.policies.personality import personality_for
+
+        access = WorldAccess(world)
+        sites = [Position(x=x, y=y) for y in range(-2, 4) for x in range(-2, 4) if (x, y) != (0, 0)]
+        for i, p in enumerate(sites[: config.agent_count]):
+            key = f"agent-{i:02d}"
+            world.agents[key] = Agent(
+                id=key,
+                name=NAMES[i % 10],
+                age=18 + i * 3,
+                visual_color=COLORS[i % 10],
+                position=p,
+                hunger=20 + i,
+                energy=min(100, 85 + i),
+                personality=personality_for(config.seed, i),
+                settlement_id="settlement-0",
+                inventory=Inventory(capacity=24),
+            )
+        world.settlements["settlement-0"] = Settlement(
+            id="settlement-0",
+            name="Hearthgrove",
+            center=Position(x=0, y=0),
+            members=list(world.agents),
+            storage=Inventory(
+                food=12, wood=14, stone=10, fiber=6, fuel=8, seeds=4, water=6, clay=2, capacity=80
+            ),
+            buildings=["building-0"],
+        )
+        world.buildings["building-0"] = Building(
+            id="building-0",
+            kind="campfire",
+            position=Position(x=0, y=0),
+            settlement_id="settlement-0",
+            progress=100,
+            fuel=12,
+        )
+        for a in world.agents.values():
+            a.known_chunks = sorted(
+                {
+                    f"{x},{y}"
+                    for x in range((a.position.x - 8) // 32, (a.position.x + 8) // 32 + 1)
+                    for y in range((a.position.y - 8) // 32, (a.position.y + 8) // 32 + 1)
+                }
+            )
+        world.explored_chunks = sorted({k for a in world.agents.values() for k in a.known_chunks})
+        from app.simulation.settlements.effects import settlement_tick
+
+        settlement_tick(world, access)
+        for key in access.active_keys():
+            access.cache.get(*map(int, key.split(",")))
+        return world
     rng = random.Random(config.seed)
     tiles = []
     for y in range(config.height):

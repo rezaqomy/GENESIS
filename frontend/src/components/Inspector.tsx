@@ -1,29 +1,27 @@
+import { useState } from 'react'
 import { useWorld } from '../stores/world'
-import type { Agent } from '../types/world'
-function Portrait({ agent }: { agent: Agent }) {
-  return <div className="portrait" style={{'--shirt': agent.visual_color} as React.CSSProperties}><div className="pixel-person"><i className="hair"/><i className="head"/><i className="shirt"/><i className="arm left"/><i className="arm right"/><i className="leg left"/><i className="leg right"/></div></div>
+import { resourceKinds } from '../types/world'
+import { SettlementDashboard } from './Settlement'
+function Meter({label,value,color='#8bbc9c'}:{label:string;value:number;color?:string}) {
+  return <div className="meter"><div><span>{label.replaceAll('_',' ')}</span><b>{Math.round(value)}<small> / 100</small></b></div><div className="meter-track"><i style={{width:`${Math.max(0,Math.min(100,value))}%`,background:color}}/></div></div>
 }
-function Meter({ label, value, color }: {label:string; value:number; color:string}) {
-  return <div className="meter"><div><span>{label}</span><b>{value}<small> / 100</small></b></div><div className="meter-track"><i style={{width:`${value}%`,background:color}} /></div></div>
-}
+const tabs=['Overview','Personality','Decision','Inventory','Social','History'] as const
 export function Inspector() {
-  const { snapshot, selected, select, events } = useWorld()
-  const agents = Object.values(snapshot?.state.agents ?? {})
-  const agent = selected ? snapshot?.state.agents[selected] : null
-  const recent = events.filter(e => e.actor_id === selected).slice(-4).reverse()
-  return <aside className="inspector panel">
-    <div className="section-line"><span className="eyebrow">AGENT INSPECTOR</span><span className="muted">↗</span></div>
-    {agent ? <>
-      <div className="agent-profile"><Portrait agent={agent}/><div><h2>{agent.name}</h2><p>{agent.age} years old <span>·</span> {agent.alive ? 'Alive' : 'Deceased'}</p><span className="agent-action">{agent.current_action.toLowerCase()}</span></div><button className="close" aria-label="Clear selection" onClick={() => select(null)}>×</button></div>
-      <div className="section-caption">VITAL SIGNS</div>
-      <Meter label="Health" value={agent.health} color="#8bbc9c"/><Meter label="Hunger" value={agent.hunger} color="#d9ae74"/><Meter label="Energy" value={agent.energy} color="#86acc7"/>
-      <p className="helper">Higher hunger means closer to starvation.</p>
-      <div className="divider"/><div className="section-caption">IN THE WORLD</div>
-      <dl className="details"><div><dt>Position</dt><dd>{agent.position.x}, {agent.position.y}</dd></div><div><dt>Destination</dt><dd>{agent.destination ? `${agent.destination.x}, ${agent.destination.y}` : '—'}</dd></div><div><dt>Current action</dt><dd>{agent.current_action}</dd></div></dl>
-      <div className="section-caption">INVENTORY <span>{agent.inventory.food+agent.inventory.wood}/{agent.inventory.capacity}</span></div>
-      <div className="inventory"><div><span>✿</span><b>{agent.inventory.food}</b><small>Food</small></div><div><span>♧</span><b>{agent.inventory.wood}</b><small>Wood</small></div></div>
-      <div className="divider"/><div className="section-caption">RECENT ACTIVITY</div><div className="recent-activity">{recent.length ? recent.map(e => <p key={e.event_id}><small>T{e.tick}</small>{e.payload.message}</p>) : <p className="muted">This life is just beginning.</p>}</div>
-    </> : <div className="inspector-empty"><div className="empty-icon">♙</div><h2>Every life has a story.</h2><p>Select a character in the world<br/>to see what they’re doing.</p></div>}
-    <div className="roster"><div className="section-caption">INHABITANTS <span>{agents.filter(a=>a.alive).length} ALIVE</span></div><div className="roster-grid">{agents.map(a => <button className={selected === a.id ? 'selected' : ''} key={a.id} onClick={() => select(a.id)} aria-label={`Inspect ${a.name}`}><i style={{background:a.visual_color,opacity:a.alive?1:.3}}/>{a.name}</button>)}</div></div>
+  const {snapshot,selected,select,events,focus}=useWorld()
+  const [tab,setTab]=useState<typeof tabs[number]>('Overview')
+  const agents=Object.values(snapshot?.state.agents??{})
+  const a=selected?snapshot?.state.agents[selected]:null
+  const history=events.filter(e=>e.actor_id===selected&&e.payload.message).slice(-30).reverse()
+  return <aside className="inspector panel"><div className="section-line"><span className="eyebrow">AGENT INSPECTOR</span><span className="muted">↗</span></div>
+    {a?<><div className="agent-profile"><div className="portrait" style={{backgroundColor:a.visual_color+'35'}}><img src={`/assets/genesis/character-${Number(a.id.slice(-2))%4}.png`} alt="" onError={e=>{e.currentTarget.style.display='none'}}/></div><div><h2>{a.name}</h2><p>{a.age} years old · {a.alive?'Alive':'Deceased'}</p><span className="agent-action">{a.current_action.toLowerCase()}</span></div><button className="close" aria-label="Clear selection" onClick={()=>select(null)}>×</button></div>
+    <nav className="inspector-tabs" aria-label="Agent details">{tabs.map(t=><button key={t} aria-pressed={tab===t} className={tab===t?'chosen':''} onClick={()=>setTab(t)}>{t}</button>)}</nav><div className="inspector-content">
+      {tab==='Overview'&&<><Meter label="Health" value={a.health}/><Meter label="Hunger" value={a.hunger} color="#d9ae74"/><Meter label="Energy" value={a.energy} color="#86acc7"/><p className="helper">Higher hunger means closer to starvation.</p><Meter label="Mood" value={a.psychology.mood*100}/><Meter label="Safety" value={a.psychology.sense_of_safety*100}/><dl className="details"><div><dt>Goal</dt><dd>{a.decision.selected_goal.replaceAll('_',' ')}</dd></div><div><dt>Position</dt><dd>{a.position.x}, {a.position.y}</dd></div><div><dt>Destination</dt><dd>{a.destination?`${a.destination.x}, ${a.destination.y}`:'—'}</dd></div><div><dt>Lifestyle</dt><dd>{a.lifestyle}</dd></div></dl><button className="secondary" onClick={()=>focus(a.position)}>Focus camera</button></>}
+      {tab==='Personality'&&Object.entries(a.personality).map(([k,v])=><Meter key={k} label={k} value={v*100}/>)}
+      {tab==='Decision'&&<><h3>{a.decision.selected_goal.replaceAll('_',' ')}</h3><p className="helper">Committed through tick {a.decision.commitment_until} · {a.decision.failures} recent failures</p><Meter label="Goal progress" value={a.decision.progress*100}/><ol className="plan">{a.decision.plan.map((p,i)=><li key={i}>{p}</li>)}</ol><div className="utility-list">{[...a.decision.candidates].sort((a,b)=>b.utility-a.utility).map(c=><details key={c.goal} className={c.goal===a.decision.selected_goal?'selected-goal':''}><summary><span>{c.goal.replaceAll('_',' ')}</span><b>{c.utility.toFixed(3)}</b></summary><div className="utility-bar"><i style={{width:`${c.utility*100}%`}}/></div>{c.rejection?<p className="helper">Unavailable: {c.rejection}</p>:Object.entries(c.factors).map(([k,v])=><p className="factor" key={k}><span>{k.replaceAll('_',' ')}</span><b>{v>=0?'+':''}{v.toFixed(3)}</b></p>)}</details>)}</div></>}
+      {tab==='Inventory'&&<><div className="section-caption">CAPACITY <span>{resourceKinds.reduce((n,k)=>n+a.inventory[k],0)} / {a.inventory.capacity}</span></div><div className="inventory">{resourceKinds.map(k=><div key={k}><img className="item-icon" src={`/assets/genesis/item_${k==='water'?'water_item':k}.png`} alt=""/><b>{a.inventory[k]}</b><small>{k}</small></div>)}</div><h3>Tools</h3>{Object.entries(a.inventory.tools).map(([k,v])=><Meter key={k} label={`${k} durability`} value={v}/>)}{!Object.keys(a.inventory.tools).length&&<p className="helper">No tools carried.</p>}</>}
+      {tab==='Social'&&<><dl className="details"><div><dt>Community</dt><dd>{a.settlement_id?snapshot?.state.settlements[a.settlement_id]?.name:'Independent'}</dd></div><div><dt>Time away</dt><dd>{a.time_away} ticks</dd></div><div><dt>Known regions</dt><dd>{a.known_chunks.length}</dd></div></dl>{(['loneliness','social_satisfaction','attachment','homesickness','stress','fear'] as const).map(k=><Meter key={k} label={k} value={a.psychology[k]*100}/>)}<h3>Nearby companions</h3>{a.nearby_agents.map(id=><p key={id}>{snapshot?.state.agents[id]?.name} · affinity {Math.round((a.relationships[id]??0)*100)}%</p>)}</>}
+      {tab==='History'&&<div className="recent-activity">{history.map(e=><p key={e.event_id}><small>T{e.tick}</small>{e.payload.message}</p>)}{!history.length&&<p className="helper">This life is just beginning.</p>}</div>}
+    </div></>:<div className="inspector-empty"><div className="empty-icon">♙</div><h2>Every life has a story.</h2><p>Select a character to understand<br/>what matters to them.</p></div>}
+    <div className="roster"><div className="section-caption">INHABITANTS <span>{agents.filter(a=>a.alive).length} ALIVE</span></div><div className="roster-grid">{agents.map(a=><button className={selected===a.id?'selected':''} key={a.id} onClick={()=>select(a.id)} aria-label={`Inspect ${a.name}`}><i style={{background:a.visual_color,opacity:a.alive?1:.3}}/>{a.name}</button>)}</div></div><SettlementDashboard/>
   </aside>
 }
