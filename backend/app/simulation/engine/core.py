@@ -111,7 +111,11 @@ class Engine:
                     for aid in sorted(world.agents)
                     if world.agents[aid].alive
                 ]
-                intents = [self.policy.decide(o) for o in observations]
+                intents = (
+                    self.policy.decide_batch(observations)
+                    if hasattr(self.policy, "decide_batch")
+                    else [self.policy.decide(o) for o in observations]
+                )
             else:
                 intents = [
                     AgentIntent(actor_id=a.id, action=Action.IDLE)
@@ -154,6 +158,35 @@ class Engine:
                             next_tick,
                         )
                     )
+            from app.simulation.cognition.memory import experience
+
+            experience(world, actor, intent, accepted, message, next_tick)
+            if intent.observation_tick is not None:
+                events.append(
+                    self.event(
+                        "COGNITION_CONSUMED",
+                        {
+                            "source": intent.cognition_source,
+                            "observation_tick": intent.observation_tick,
+                            "thought": intent.thought,
+                            "intent": intent.model_dump(mode="json"),
+                        },
+                        intent.actor_id,
+                        next_tick,
+                    )
+                )
+            if accepted and intent.utterance:
+                events.append(
+                    self.event(
+                        "DIALOGUE",
+                        {
+                            "peer_id": intent.peer_id,
+                            "message": f"{actor.name}: {intent.utterance}",
+                        },
+                        intent.actor_id,
+                        next_tick,
+                    )
+                )
             if not accepted and intent.actor_id in world.agents:
                 world.agents[intent.actor_id].current_action = Action.IDLE
             events.append(

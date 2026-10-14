@@ -8,6 +8,8 @@ export interface CandidateGoal {goal:string;utility:number;factors:Record<string
 export interface Decision {selected_goal:string;candidates:CandidateGoal[];factors:Record<string,number>;plan:string[];target:Position|null;selected_tick:number;commitment_until:number;progress:number;failures:number;cooldowns:Record<string,number>}
 export type Inventory = Record<ResourceKind,number> & { capacity:number; tools:Record<string,number> }
 export interface Agent {
+  memories?: {tick:number;kind:string;text:string;goal:string;outcome:number;peer_id:string|null}[]
+  habits?: Record<string,number>; cognition_source?:string; thought?:string
   id: string; name: string; age: number; visual_color: string
   health: number; hunger: number; energy: number; position: Position
   inventory: Inventory; destination: Position | null; current_action: Action; alive: boolean

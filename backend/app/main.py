@@ -63,6 +63,11 @@ def create_app(database: str | None = None) -> FastAPI:
             raise HTTPException(status_code=503, detail="Simulation writer stopped")
         return {"status": "ok"}
 
+    @app.get("/api/cognition")
+    async def cognition():
+        policy = service().cognition
+        return policy.status() if policy else {"enabled": False}
+
     @app.get("/api/world", response_model=Snapshot)
     async def world():
         return service().snapshot()

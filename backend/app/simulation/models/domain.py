@@ -124,6 +124,15 @@ class Decision(Model):
     failures: int = 0
 
 
+class Episode(Model):
+    tick: int = Field(ge=0)
+    kind: str
+    text: str = Field(max_length=500)
+    goal: str = ""
+    outcome: float = Field(default=0, ge=-1, le=1)
+    peer_id: str | None = None
+
+
 class Agent(Model):
     id: str
     name: str
@@ -154,6 +163,10 @@ class Agent(Model):
     lifestyle: Literal["settler", "wanderer"] = "settler"
     nearby_agents: list[str] = Field(default_factory=list)
     relationships: dict[str, float] = Field(default_factory=dict)
+    memories: list[Episode] = Field(default_factory=list, max_length=48)
+    habits: dict[str, float] = Field(default_factory=dict)
+    cognition_source: str = "utility"
+    thought: str = ""
 
 
 class UtilityWeights(Model):
@@ -264,3 +277,8 @@ class AgentIntent(Model):
     amount: int = Field(default=1, ge=1, le=8)
     building_kind: str | None = None
     building_id: str | None = None
+    cognition_source: str = "utility"
+    thought: str = Field(default="", max_length=300)
+    observation_tick: int | None = None
+    peer_id: str | None = None
+    utterance: str | None = Field(default=None, max_length=500)

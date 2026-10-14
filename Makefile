@@ -10,7 +10,7 @@ frontend/node_modules/.genesis-installed: frontend/package.json frontend/package
 	npm --prefix frontend ci
 	touch $@
 
-dev: install
+dev: install install-laya
 	./scripts/dev.sh
 
 test:
@@ -38,3 +38,9 @@ replay:
 .PHONY: e2e
 e2e:
 	npm --prefix frontend run test:e2e
+
+.PHONY: install-laya
+install-laya: .venv-laya/.genesis-installed
+
+.venv-laya/.genesis-installed: scripts/install-laya.sh
+	./scripts/install-laya.sh

@@ -1,6 +1,6 @@
 # Genesis
 
-A persistent artificial world with ten autonomous inhabitants. Python owns the simulation; a React/PixiJS observatory lets you watch it unfold, inspect individuals, and control time. Phase 2 adds signed procedural chunks, individual personalities, explained utility decisions, functional settlements and original pixel art. There is no LLM inference.
+A persistent artificial world with ten autonomous inhabitants. Python owns the simulation; a React/PixiJS observatory lets you watch it unfold, inspect individuals, and control time. Phase 2 adds signed procedural chunks, individual personalities, explained utility decisions, functional settlements and original pixel art. Local CPU cognition uses the Laya decision model, with persistent experience memory and a separate optional OpenAI-compatible dialogue provider.
 
 ## Run locally
 
@@ -28,12 +28,24 @@ make replay RUN=<run-id>
 
 `make replay` defaults to `data/genesis.sqlite`; set GENESIS_DB or use `scripts/replay.py --database ...` for a different database. Replay is safe while the running application appends committed transactions, though pause first to compare a stable API hash.
 
+## Local models and agent memory
+
+`make dev` installs an isolated CPU Laya runtime and starts its decision service on port 11437. It downloads the pinned [official multilingual Laya checkpoint](https://huggingface.co/convaiinnovations/laya-multilingual) on first use. Laya is the default decision provider (`GENESIS_DECISION_PROVIDER=laya`); it answers typed choices without generating text. Goal selection runs in bounded batches, with cached goals directing actions between refreshes. [Setup details](docs/future-ai-integration.md).
+
+Ollama remains optional: set `GENESIS_DECISION_PROVIDER=ollama` and choose `qwen2.5:0.5b` or `llama3.2:1b` with `GENESIS_LOCAL_MODEL`. `GENESIS_COGNITION=0` runs without inference.
+
+Agents remember up to 48 experiences, learn preferences from action outcomes, and use personality, emotions, weather and local conditions in decisions. Inspect **Memory** and **Decision** to see experiences and model thoughts. Emergency survival keeps deterministic priority; slow or invalid inference uses the existing utility policy. `/api/cognition` reports live inference status. Replay retains model decisions and memory without calling a model again.
+
+Set `GENESIS_DIALOGUE_URL` (including `/v1`), `GENESIS_DIALOGUE_MODEL`, and optional `GENESIS_DIALOGUE_API_KEY` when the conversation provider is available. These settings are used only for dialogue between nearby agents.
+
 ## Docker
 
 ```sh
 docker compose up --build
 # or: make docker
 ```
+
+For CPU Laya cognition in Docker, run `GENESIS_COGNITION=1 docker compose --profile cognition up --build`. Its checkpoint downloads automatically into `genesis-laya`. For optional Ollama decisions, set `GENESIS_DECISION_PROVIDER=ollama` and pull the chosen model with `docker compose --profile cognition exec ollama ollama pull qwen2.5:0.5b`. Without this profile, set `GENESIS_COGNITION=0` if your `.env` enables cognition.
 
 Open http://localhost:5173. SQLite persists in the `genesis-data` named volume. `docker compose down` stops the app and retains data. The Compose frontend runs Vite for this local development MVP and proxies HTTP/WS to the backend container. A production UI bundle is available with `make build`; deploying it requires a reverse proxy for `/api`, `/health`, and `/ws` to the single backend process.
 
@@ -59,7 +71,7 @@ GET `/api/replay/{run_id}` reconstructs the recorded world and returns its hash 
 
 ## Engineering notes
 
-See [architecture](docs/architecture.md), [simulation rules](docs/simulation-rules.md), and [future cognition integration](docs/future-ai-integration.md). Domain modules separate perception, policies, pathfinding, validation, action resolution, mutation events and persistence. Fixed ticks and stable actor/resource ordering make results independent of rendering speed. SQLite records the generated state, all accepted commands, complete mutation events, tick hashes and periodic snapshots. Full-log and snapshot replay reconstruct the same authoritative state.
+See [architecture](docs/architecture.md), [simulation rules](docs/simulation-rules.md), and [cognition integration](docs/future-ai-integration.md). Domain modules separate perception, policies, pathfinding, validation, action resolution, mutation events and persistence. Fixed ticks and stable actor/resource ordering make results independent of rendering speed. SQLite records the generated state, all accepted commands, complete mutation events, tick hashes and periodic snapshots. Full-log and snapshot replay reconstruct the same authoritative state.
 
 The 60 local assets were created through Figma AI and processed into PNG terrain, nature/building sprites, items and four directional character sheets. Action poses were assembled from generated walk bases and tools. See [asset manifest](docs/asset-generation-manifest.md) for source batches, exact prompts, filenames and replacements. `python3 scripts/build_assets.py` rebuilds assets from retained sources (requires Pillow). Nearest-neighbor rendering preserves pixels. Missing textures use an explicit procedural fallback, counted in Performance; no external service is needed at runtime.
 
@@ -67,7 +79,7 @@ World generation v2 uses coherent absolute-coordinate noise and 32×32 chunks. C
 
 The application defaults to infinite mode. Set `GENESIS_INFINITE=0` for legacy finite runs. Existing Phase 1 event logs retain their original hashes; enabling chunks on a finite save starts a new run and keeps old logs for replay. Domain configuration defaults remain finite for compatibility. `GENESIS_ACTIVE_RADIUS` (0–2) and `GENESIS_CACHE_SIZE` (16–256) configure chunk interest/cache limits. Utility weights are normalized configuration values stored in each run; optional `GENESIS_UTILITY_WEIGHTS` is a JSON object, e.g. `{"trait":0.35,"risk":0.30}`. A restored run keeps its recorded weights. Change weights with a fresh database for a reproducible experiment.
 
-This is a local experimental MVP without authentication. Agent and discovery caches are bounded; sparse persistent construction may grow as the experiment creates structures. Entity after-images prioritize correct resynchronization at 10-agent scale. Coarse navigation is a bounded chunk corridor with local A* replanning, not a precomputed map of distant obstacles. Relationships model proximity/compatibility; there is no dialogue, trade or combat.
+This is a local experimental MVP without authentication. Agent and discovery caches are bounded; sparse persistent construction may grow as the experiment creates structures. Entity after-images prioritize correct resynchronization at 10-agent scale. Coarse navigation is a bounded chunk corridor with local A* replanning, not a precomputed map of distant obstacles. Relationships model proximity/compatibility and validated conversations; trade and combat remain outside this MVP.
 
 ## Browser verification
 

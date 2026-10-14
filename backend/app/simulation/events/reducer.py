@@ -31,7 +31,15 @@ def agent_state(agent: Agent) -> dict:
     data = agent.model_dump(mode="json")
     # Preserve absent optional memory fields in old recordings until they are assigned.
     # After-images must use this same representation so replay keeps field presence.
-    for field in ("food_memory", "recent_positions", "known_resources"):
+    for field in (
+        "food_memory",
+        "recent_positions",
+        "known_resources",
+        "memories",
+        "habits",
+        "cognition_source",
+        "thought",
+    ):
         if field not in agent.model_fields_set:
             data.pop(field, None)
     return data

@@ -22,7 +22,7 @@ class UtilityPolicy:
     def __init__(self, weights: dict[str, float] | None = None):
         self.weights = DEFAULT_WEIGHTS | (weights or {})
 
-    def decide(self, o: Observation) -> AgentIntent:
+    def decide(self, o: Observation, preferred_goal: str | None = None) -> AgentIntent:
         a, t, p = o.self_agent, o.self_agent.personality, o.self_agent.psychology
         occupied = {(v.x, v.y) for v in o.occupied}
         walkable = {
@@ -72,6 +72,7 @@ class UtilityPolicy:
                     else "reward"
                 )
                 factors[key] = value * self.weights[group] / DEFAULT_WEIGHTS[group]
+            factors["learned_preference"] = a.habits.get(goal, 0) * 0.08
             score = max(0.0, min(1.0, sum(factors.values())))
             if a.decision.cooldowns.get(goal, 0) > o.tick:
                 rejection = rejection or "Recovery cooldown"
@@ -272,6 +273,16 @@ class UtilityPolicy:
         if previous and not urgent and a.decision.failures < 3:
             if o.tick < a.decision.commitment_until or chosen.utility < previous.utility + 0.09:
                 chosen = previous
+        # Model preferences never override emergency survival or unavailable goals.
+        if preferred_goal and not urgent and a.hunger < 85 and a.energy >= 12:
+            preferred = next((c for c in valid if c.goal == preferred_goal), None)
+            committed = (
+                previous is not None
+                and o.tick < a.decision.commitment_until
+                and a.decision.failures < 3
+            )
+            if preferred and (not committed or preferred.goal == previous.goal):
+                chosen = preferred
         action, kwargs = plans.get(chosen.goal, (Action.IDLE, {}))
         d = a.decision.model_copy(deep=True)
         switching = chosen.goal != d.selected_goal

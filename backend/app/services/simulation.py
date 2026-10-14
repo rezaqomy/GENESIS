@@ -6,6 +6,7 @@ from collections import deque
 from pathlib import Path
 
 from app.simulation.chunks.access import ChunkCache, WorldAccess
+from app.simulation.cognition.runtime import CognitionPolicy, Settings
 from app.simulation.engine.core import Engine
 from app.simulation.events.reducer import authoritative_state, state_hash
 from app.simulation.models.domain import WorldConfig
@@ -37,6 +38,11 @@ class SimulationService:
             self.engine.policy = UtilityPolicy(
                 self.engine.world.config.utility_weights.model_dump()
             )
+        self.cognition = None
+        if self.engine.world.config.infinite:
+            self.cognition = CognitionPolicy(self.engine.policy, Settings.from_env())
+            self.cognition.reset(self.engine.run_id)
+            self.engine.policy = self.cognition
         self.visual_cache = ChunkCache(
             self.engine.world.config.seed, self.engine.world.config.generator_version, 64
         )
@@ -165,6 +171,8 @@ class SimulationService:
                 if name == "reset":
                     config = self.engine.world.config.model_copy(update={"seed": value})
                     events = self.engine.reset(config)
+                    if self.cognition:
+                        self.cognition.reset(self.engine.run_id)
                     events += [
                         self.engine.event(
                             "COMMAND_ACCEPTED",
@@ -193,6 +201,8 @@ class SimulationService:
             self.task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self.task
+        if self.cognition:
+            await self.cognition.close()
         self.store.close()
         if self.file_lock:
             self.file_lock.close()

@@ -13,3 +13,4 @@ artifacts/
 .playwright-mcp/
 frontend/test-results/
 frontend/playwright-report/
+.venv-laya/

@@ -109,3 +109,35 @@ def test_food_memory_kind_and_configurable_weights():
     assert explore.factors["curiosity"] == 0
     assert e.world.config.utility_weights.need == 0.55
     s.close()
+
+
+def test_model_goal_respects_commitment_but_can_recover_and_handle_emergency():
+    store = EventStore(":memory:")
+    engine = Engine(WorldConfig(infinite=True), store, UtilityPolicy())
+    try:
+        a = engine.world.agents["agent-00"]
+        a.energy, a.hunger, a.inventory.food = 60, 20, 1
+        observation = build_observation(engine.world, a.id, access=engine.access)
+        resting = engine.policy.decide(observation, preferred_goal="rest")
+        assert resting.decision.selected_goal == "rest"
+        a.decision = resting.decision
+        observation = build_observation(engine.world, a.id, access=engine.access)
+        assert engine.policy.decide(observation, preferred_goal="find_food").action == Action.REST
+        # A new model goal becomes eligible once commitment expires.
+        observation.tick = a.decision.commitment_until
+        assert (
+            engine.policy.decide(observation, preferred_goal="find_food").decision.selected_goal
+            == "find_food"
+        )
+        # Repeated failures allow replanning before the commitment deadline.
+        observation.tick = 0
+        observation.self_agent.decision.failures = 3
+        assert (
+            engine.policy.decide(observation, preferred_goal="find_food").decision.selected_goal
+            == "find_food"
+        )
+        # Hunger emergencies still interrupt any commitment.
+        observation.self_agent.hunger = 95
+        assert engine.policy.decide(observation, preferred_goal="explore").action == Action.EAT
+    finally:
+        store.close()

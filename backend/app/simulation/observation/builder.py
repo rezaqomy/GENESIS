@@ -5,6 +5,8 @@ from app.simulation.models.domain import Agent, Model, Position, Resource, Tile,
 
 
 class Observation(Model):
+    peers: list[dict] = Field(default_factory=list)
+    environment: dict = Field(default_factory=dict)
     seed: int
     tick: int
     self_agent: Agent
@@ -33,7 +35,15 @@ def build_observation(
     def visible(p: Position) -> bool:
         return agent.position.distance(p) <= radius
 
+    from app.simulation.settlements.environment import conditions
+
     return Observation(
+        environment=conditions(world.config.seed, world.tick),
+        peers=[
+            {"id": a.id, "name": a.name, "position": a.position.model_dump()}
+            for a in world.agents.values()
+            if a.alive and a.id != actor_id and visible(a.position)
+        ],
         seed=world.config.seed,
         path_budget=world.config.path_budget,
         settlement=world.settlements[agent.settlement_id].model_dump(mode="json")

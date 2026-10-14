@@ -36,4 +36,8 @@ The frontend retains 48 chunk projections. Pixi culls chunk nodes/resources/huma
 
 ## Performance and limits
 
-Tick and decision durations, active/base/visual-cache chunk counts and JSON payload size are non-authoritative service metrics. The frontend measures FPS and rendered chunks. Ten agents are supported; full entity after-images and synchronous SQLite need future benchmarking before claiming 100-agent throughput. Resource depletion and construction are real; survival is not guaranteed. This is a local sandbox without authentication, distant omniscient navigation, combat, dialogue or multi-settlement politics.
+Tick and decision durations, active/base/visual-cache chunk counts and JSON payload size are non-authoritative service metrics. The frontend measures FPS and rendered chunks. Ten agents are supported; full entity after-images and synchronous SQLite need future benchmarking before claiming 100-agent throughput. Resource depletion and construction are real; survival is not guaranteed. This is a local sandbox without authentication, distant omniscient navigation, combat or multi-settlement politics.
+
+## Hybrid cognition
+
+Copied observations feed a single bounded asynchronous local decision task. A validated model goal is replanned against current observations; unavailable, expired and previous-run results fall back to utility. Laya is the default provider and uses grouped typed-choice batches on CPU. Cached goals keep directing fresh legal actions while new batches run. Ollama is an optional alternate provider. Dialogue uses a separately configured compatible provider and a validated adjacent listener. Agent after-images persist bounded experience memory and learned goal preferences. See [cognition integration](future-ai-integration.md) for scheduling, setup and replay guarantees.

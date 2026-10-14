@@ -9,6 +9,16 @@ def validate_intent(
     agent = world.agents.get(intent.actor_id)
     if agent is None or not agent.alive:
         return "Actor is absent or dead"
+    if intent.utterance is not None:
+        peer = world.agents.get(intent.peer_id or "")
+        if (
+            intent.action != Action.SOCIALIZE
+            or peer is None
+            or not peer.alive
+            or peer.id == agent.id
+            or agent.position.distance(peer.position) > 1
+        ):
+            return "Dialogue requires a living adjacent listener"
     if intent.action == Action.MOVE:
         target = intent.target
         if target is None or agent.position.distance(target) != 1:
