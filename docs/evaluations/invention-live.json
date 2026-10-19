@@ -1,0 +1,31 @@
+{
+  "before_final_service_reload": {
+    "run_id": "67cac796-49e3-4cfb-8c69-100d31a5d58e",
+    "tick": 7298,
+    "status": "running",
+    "speed": 8.0
+  },
+  "cognition": {
+    "completed": 50,
+    "errors": 0,
+    "consumed": 769,
+    "last_error": null,
+    "decisions": 2030,
+    "fallback": 1261,
+    "enabled": true,
+    "provider": "laya",
+    "model": "convaiinnovations/laya-multilingual",
+    "pending": 1,
+    "dialogue_pending": 0,
+    "dialogue_configured": false
+  },
+  "tool_trials": 32,
+  "after_final_service_reload": {
+    "run_id": "67cac796-49e3-4cfb-8c69-100d31a5d58e",
+    "tick": 7391,
+    "status": "running",
+    "speed": 8.0,
+    "alive": 10,
+    "tool_trials": 45
+  }
+}

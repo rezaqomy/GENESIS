@@ -33,14 +33,36 @@ def agent_state(agent: Agent) -> dict:
     # After-images must use this same representation so replay keeps field presence.
     for field in (
         "food_memory",
+        "vision_radius",
+        "housing",
+        "inventions",
         "recent_positions",
         "known_resources",
         "memories",
+        "memory",
+        "task",
+        "task_history",
+        "skills",
         "habits",
         "cognition_source",
         "thought",
     ):
         if field not in agent.model_fields_set:
+            data.pop(field, None)
+    return data
+
+
+def building_state(building: Building) -> dict:
+    data = building.model_dump(mode="json")
+    for field in (
+        "design",
+        "quality",
+        "work_units",
+        "contributors",
+        "last_damage_cause",
+        "last_damage_tick",
+    ):
+        if field not in building.model_fields_set:
             data.pop(field, None)
     return data
 
@@ -52,6 +74,7 @@ def authoritative_state(world: WorldState) -> dict:
         data["tiles"] = []
         data["resources"] = {}
         data["agents"] = {key: agent_state(agent) for key, agent in world.agents.items()}
+        data["buildings"] = {key: building_state(b) for key, b in world.buildings.items()}
     else:
         # Preserve canonical hashes for original Phase 1 logs even as models gain fields.
         config_keys = ("seed", "width", "height", "agent_count", "regeneration_ticks")

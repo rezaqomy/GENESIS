@@ -1,0 +1,271 @@
+[
+  {
+    "seed": 42,
+    "ticks": 240,
+    "alive": 10,
+    "mean_living_hunger": 24.06,
+    "actions": {
+      "MOVE": 1487,
+      "WITHDRAW": 49,
+      "BUILD": 40,
+      "REST": 352,
+      "EAT": 112,
+      "GATHER": 238,
+      "STORE": 49,
+      "REFUEL": 3,
+      "CRAFT": 19
+    },
+    "rejections": {
+      "Target tile is occupied": 44,
+      "Build site already occupied by a structure": 3,
+      "Resource is depleted": 2,
+      "Storage transfer lacks requested quantity": 2
+    },
+    "completed_buildings": 11,
+    "mean_tick_ms": 182.92,
+    "state_bytes": 290713,
+    "memory_counts": {
+      "agent-00": {
+        "short": 24,
+        "long": 22,
+        "facts": 13,
+        "lessons": 15
+      },
+      "agent-01": {
+        "short": 17,
+        "long": 16,
+        "facts": 10,
+        "lessons": 12
+      },
+      "agent-02": {
+        "short": 21,
+        "long": 19,
+        "facts": 14,
+        "lessons": 18
+      },
+      "agent-03": {
+        "short": 23,
+        "long": 24,
+        "facts": 9,
+        "lessons": 14
+      },
+      "agent-04": {
+        "short": 23,
+        "long": 15,
+        "facts": 18,
+        "lessons": 15
+      },
+      "agent-05": {
+        "short": 19,
+        "long": 22,
+        "facts": 11,
+        "lessons": 18
+      },
+      "agent-06": {
+        "short": 21,
+        "long": 21,
+        "facts": 16,
+        "lessons": 13
+      },
+      "agent-07": {
+        "short": 20,
+        "long": 26,
+        "facts": 10,
+        "lessons": 24
+      },
+      "agent-08": {
+        "short": 22,
+        "long": 31,
+        "facts": 15,
+        "lessons": 17
+      },
+      "agent-09": {
+        "short": 21,
+        "long": 29,
+        "facts": 15,
+        "lessons": 18
+      }
+    },
+    "replay_verified": true
+  },
+  {
+    "seed": 7,
+    "ticks": 240,
+    "alive": 10,
+    "mean_living_hunger": 23.77,
+    "actions": {
+      "MOVE": 1530,
+      "WITHDRAW": 47,
+      "BUILD": 32,
+      "EAT": 121,
+      "GATHER": 211,
+      "REST": 366,
+      "STORE": 41,
+      "CRAFT": 9,
+      "REFUEL": 3,
+      "SOCIALIZE": 5
+    },
+    "rejections": {
+      "Target tile is occupied": 29,
+      "Build site already occupied by a structure": 1,
+      "No companion within one tile": 2,
+      "Storage transfer lacks requested quantity": 3
+    },
+    "completed_buildings": 9,
+    "mean_tick_ms": 192.07,
+    "state_bytes": 281388,
+    "memory_counts": {
+      "agent-00": {
+        "short": 22,
+        "long": 16,
+        "facts": 16,
+        "lessons": 16
+      },
+      "agent-01": {
+        "short": 19,
+        "long": 15,
+        "facts": 14,
+        "lessons": 15
+      },
+      "agent-02": {
+        "short": 24,
+        "long": 19,
+        "facts": 12,
+        "lessons": 13
+      },
+      "agent-03": {
+        "short": 19,
+        "long": 12,
+        "facts": 14,
+        "lessons": 12
+      },
+      "agent-04": {
+        "short": 20,
+        "long": 22,
+        "facts": 16,
+        "lessons": 15
+      },
+      "agent-05": {
+        "short": 21,
+        "long": 21,
+        "facts": 13,
+        "lessons": 14
+      },
+      "agent-06": {
+        "short": 22,
+        "long": 24,
+        "facts": 15,
+        "lessons": 20
+      },
+      "agent-07": {
+        "short": 24,
+        "long": 23,
+        "facts": 15,
+        "lessons": 18
+      },
+      "agent-08": {
+        "short": 19,
+        "long": 23,
+        "facts": 15,
+        "lessons": 19
+      },
+      "agent-09": {
+        "short": 17,
+        "long": 25,
+        "facts": 14,
+        "lessons": 11
+      }
+    },
+    "replay_verified": true
+  },
+  {
+    "seed": 123,
+    "ticks": 240,
+    "alive": 10,
+    "mean_living_hunger": 28.63,
+    "actions": {
+      "MOVE": 1556,
+      "WITHDRAW": 37,
+      "BUILD": 32,
+      "GATHER": 199,
+      "EAT": 108,
+      "REST": 372,
+      "STORE": 31,
+      "REFUEL": 3,
+      "CRAFT": 6,
+      "SOCIALIZE": 6
+    },
+    "rejections": {
+      "Target tile is occupied": 37,
+      "Build site already occupied by a structure": 4,
+      "Storage transfer lacks requested quantity": 6,
+      "No companion within one tile": 3
+    },
+    "completed_buildings": 9,
+    "mean_tick_ms": 205.91,
+    "state_bytes": 294099,
+    "memory_counts": {
+      "agent-00": {
+        "short": 22,
+        "long": 16,
+        "facts": 23,
+        "lessons": 15
+      },
+      "agent-01": {
+        "short": 24,
+        "long": 14,
+        "facts": 18,
+        "lessons": 14
+      },
+      "agent-02": {
+        "short": 20,
+        "long": 15,
+        "facts": 21,
+        "lessons": 10
+      },
+      "agent-03": {
+        "short": 24,
+        "long": 20,
+        "facts": 29,
+        "lessons": 11
+      },
+      "agent-04": {
+        "short": 20,
+        "long": 12,
+        "facts": 17,
+        "lessons": 12
+      },
+      "agent-05": {
+        "short": 14,
+        "long": 28,
+        "facts": 16,
+        "lessons": 16
+      },
+      "agent-06": {
+        "short": 24,
+        "long": 27,
+        "facts": 23,
+        "lessons": 15
+      },
+      "agent-07": {
+        "short": 19,
+        "long": 27,
+        "facts": 32,
+        "lessons": 17
+      },
+      "agent-08": {
+        "short": 24,
+        "long": 24,
+        "facts": 21,
+        "lessons": 14
+      },
+      "agent-09": {
+        "short": 23,
+        "long": 26,
+        "facts": 17,
+        "lessons": 19
+      }
+    },
+    "replay_verified": true
+  }
+]

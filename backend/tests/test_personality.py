@@ -69,7 +69,11 @@ def test_return_home_and_personality_exploration():
     a.personality.loyalty = 0
     a.personality.sociability = 0
     a.personality.risk_tolerance = 1
-    intent = e.policy.decide(build_observation(e.world, a.id, access=e.access))
+    # Curiosity may now lead to an invention too; exploration must remain available
+    # and an explicit model choice must still produce a real outbound journey.
+    intent = e.policy.decide(
+        build_observation(e.world, a.id, access=e.access), preferred_goal="explore"
+    )
     assert intent.decision.selected_goal == "explore"
     assert a.position.distance(intent.destination) > 16
     s.close()
@@ -111,7 +115,7 @@ def test_food_memory_kind_and_configurable_weights():
     s.close()
 
 
-def test_model_goal_respects_commitment_but_can_recover_and_handle_emergency():
+def test_model_goal_can_change_commitment_but_respects_emergency():
     store = EventStore(":memory:")
     engine = Engine(WorldConfig(infinite=True), store, UtilityPolicy())
     try:
@@ -122,8 +126,11 @@ def test_model_goal_respects_commitment_but_can_recover_and_handle_emergency():
         assert resting.decision.selected_goal == "rest"
         a.decision = resting.decision
         observation = build_observation(engine.world, a.id, access=engine.access)
-        assert engine.policy.decide(observation, preferred_goal="find_food").action == Action.REST
-        # A new model goal becomes eligible once commitment expires.
+        assert (
+            engine.policy.decide(observation, preferred_goal="find_food").decision.selected_goal
+            == "find_food"
+        )
+        # The same goal also remains valid after the old commitment expires.
         observation.tick = a.decision.commitment_until
         assert (
             engine.policy.decide(observation, preferred_goal="find_food").decision.selected_goal

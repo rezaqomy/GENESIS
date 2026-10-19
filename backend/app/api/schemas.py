@@ -22,6 +22,7 @@ class Snapshot(Model):
     state: WorldState
     state_hash: str
     events: list[WorldEvent]
+    events_after: int | None = None
     environment: dict = Field(default_factory=dict)
     metrics: dict = Field(default_factory=dict)
 

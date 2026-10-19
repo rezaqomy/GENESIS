@@ -87,8 +87,11 @@ async def test_async_routing_memory_and_replay():
         assert any(e.event_type == "DIALOGUE" for e in events)
         assert any(m.kind == "dialogue" for m in a.memories)
         assert any(m.kind == "dialogue" for m in b.memories)
-        assert calls[0][1]["options"]["num_gpu"] == 0
-        assert calls[1][0] == "https://dialogue.test/v1/chat/completions"
+        assert (
+            next(body for url, body in calls if url.endswith("/api/chat"))["options"]["num_gpu"]
+            == 0
+        )
+        assert any(url == "https://dialogue.test/v1/chat/completions" for url, _ in calls)
         assert state_hash(store.replay(engine.run_id, use_snapshot=True)) == state_hash(
             engine.world
         )
@@ -246,6 +249,81 @@ async def test_laya_batch_primary_retention_legality_and_replay():
         assert policy.decide(observations[0]).cognition_source == "utility"
         policy.reset("another-run")
         assert not policy.results
+    finally:
+        await policy.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("dialogue_provider", ["compatible", "ollama"])
+async def test_speech_mailbox_survives_goal_refresh_and_answers_heard_words(dialogue_provider):
+    engine, store = fixture_world()
+    a, b = list(engine.world.agents.values())[:2]
+    a.position, b.position = Position(x=0, y=0), Position(x=1, y=0)
+    a.hunger, a.energy = 10, 90
+    policy = CognitionPolicy(
+        engine.policy,
+        Settings(
+            enabled=False,
+            dialogue_provider=dialogue_provider,
+            dialogue_url="https://speech.test/v1",
+            dialogue_model="test",
+        ),
+    )
+    policy.reset(engine.run_id)
+    try:
+        o = build_observation(engine.world, a.id, access=engine.access)
+        policy.speeches[a.id] = (engine.run_id, 0, b.id, "Are you tired?")
+        policy.results[a.id] = (
+            engine.run_id,
+            0,
+            Choice(goal="explore", reason="new goal"),
+            None,
+            None,
+        )
+        intent = policy.decide(o)
+        assert intent.utterance == "Are you tired?"
+        events = engine.tick([intent])
+        assert any(e.event_type == "DIALOGUE" for e in events)
+        assert not policy.speeches
+        assert not policy.decide(o).utterance
+        captured = []
+
+        def handler(request):
+            captured.append(json.loads(request.content))
+            if dialogue_provider == "ollama":
+                assert request.url.path == "/api/chat"
+                assert captured[-1]["options"]["num_gpu"] == 0
+                assert captured[-1]["options"]["num_thread"] == 2
+                return httpx.Response(
+                    200, json={"message": {"content": '{"text":"Yes, I need some rest."}'}}
+                )
+            return httpx.Response(
+                200,
+                json={"choices": [{"message": {"content": '{"text":"Yes, I need some rest."}'}}]},
+            )
+
+        await policy.client.aclose()
+        policy.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        peer_id, speech = await policy.speak(
+            build_observation(engine.world, b.id, access=engine.access),
+            Choice(goal="socialize", reason="reply"),
+            {},
+        )
+        assert peer_id == a.id and speech == "Yes, I need some rest."
+        context = json.loads(captured[0]["messages"][1]["content"])["context"]
+        assert any("Are you tired?" in text for text in context["conversation"])
+        assert captured[0]["messages"][-1] == {"role": "user", "content": "Are you tired?"}
+        assert "inventory" not in context["self"]
+        # Emergency eating overrides a waiting reply.
+        a.hunger, a.inventory.food = 95, 1
+        policy.speeches[a.id] = (engine.run_id, engine.world.tick, b.id, "Wait here.")
+        intent = policy.decide(build_observation(engine.world, a.id, access=engine.access))
+        assert intent.action == Action.EAT and intent.utterance is None
+        # A departed listener cannot receive a cached utterance.
+        b.position = Position(x=100, y=100)
+        policy.decide(build_observation(engine.world, a.id, access=engine.access))
+        assert a.id not in policy.speeches
     finally:
         await policy.close()
         store.close()

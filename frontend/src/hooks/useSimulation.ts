@@ -1,9 +1,11 @@
 import { useEffect } from 'react'
 import { useWorld } from '../stores/world'
 import { setStream } from '../api/stream'
+import { JournalSync } from '../api/journal'
 import type { ChunkMessage, Snapshot } from '../types/world'
 export function useSimulation() {
   useEffect(() => {
+    const journal=new JournalSync()
     let socket: WebSocket | null = null
     let timer: ReturnType<typeof setTimeout>
     let closed = false
@@ -19,7 +21,10 @@ export function useSimulation() {
         try {
           const packet=JSON.parse(event.data) as Snapshot|ChunkMessage
           if(packet.type==='chunks')useWorld.getState().acceptChunks(packet)
-          else useWorld.getState().accept(packet)
+          else {
+            useWorld.getState().accept(packet)
+            journal.observe(packet)
+          }
         }
         catch { useWorld.setState({ error: 'Invalid state update received' }) }
       }
@@ -43,7 +48,7 @@ export function useSimulation() {
     }, 10000)
     connect()
     return () => {
-      closed = true; setStream(null); clearTimeout(timer); clearInterval(heartbeat); socket?.close()
+      closed = true; journal.close(); setStream(null); clearTimeout(timer); clearInterval(heartbeat); socket?.close()
       window.removeEventListener('offline', offline); window.removeEventListener('online', online)
     }
   }, [])

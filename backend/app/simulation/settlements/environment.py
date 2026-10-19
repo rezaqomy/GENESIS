@@ -8,13 +8,24 @@ def conditions(seed: int, tick: int) -> dict:
     phase = (tick % 240) / 240
     night = phase >= 0.72 or phase < 0.12
     weather_sample = sample(seed, tick // 120, 0, "weather")
-    weather = "rain" if weather_sample < 0.22 else "wind" if weather_sample < 0.4 else "clear"
+    weather = (
+        "storm"
+        if weather_sample < 0.08
+        else "rain"
+        if weather_sample < 0.28
+        else "wind"
+        if weather_sample < 0.5
+        else "clear"
+    )
     return {
         "day": tick // 240 + 1,
         "phase": round(phase, 4),
         "night": night,
         "weather": weather,
-        "cold": round((0.55 if night else 0.12) + (0.25 if weather == "rain" else 0), 3),
+        "wind_strength": round(
+            0.8 + weather_sample if weather == "storm" else 0.35 if weather == "wind" else 0.1, 3
+        ),
+        "cold": round((0.55 if night else 0.12) + (0.25 if weather in ("rain", "storm") else 0), 3),
     }
 
 
@@ -48,7 +59,12 @@ def experience_tick(world: WorldState, access) -> None:
     for a in world.agents.values():
         if not a.alive:
             continue
-        peers = [b for b in index.nearby(a.position, 5) if b.id != a.id]
+        from app.simulation.observation.vision import vision_radius
+        from app.simulation.settlements.effects import local_effects
+
+        effects = local_effects(world, a.position, index)
+        sight = vision_radius(a, effects)
+        peers = [b for b in index.nearby(a.position, min(5, sight)) if b.id != a.id]
         a.nearby_agents = [b.id for b in peers]
         compatibility = sum(
             1 - abs(a.personality.sociability - b.personality.sociability) for b in peers
@@ -65,14 +81,15 @@ def experience_tick(world: WorldState, access) -> None:
         safety = clamp(0.45 + min(0.25, len(peers) * 0.05) - env["cold"] * 0.32)
         # Later settlement structures provide local effects through this one boundary.
         if world.settlements:
-            from app.simulation.settlements.effects import local_effects
-
-            effects = local_effects(world, a.position, index)
             safety = effects["safety"]
         else:
             effects = {"comfort": 0.0, "warmth": 0.0}
-        if env["night"] and (world.tick + 1) % 12 == 0 and a.inventory.tools.get("torch", 0):
-            a.inventory.tools["torch"] -= 1
+        if env["night"] and (world.tick + 1) % 12 == 0:
+            from app.simulation.engineering.invention import best_tool
+
+            light, effectiveness = best_tool(a, "light")
+            if light and effectiveness >= 0.3:
+                a.inventory.tools[light] -= 1
         p.sense_of_safety = safety
         p.fear = clamp(p.fear * 0.88 + (1 - safety) * (1 - traits.risk_tolerance) * 0.12)
         distance = a.position.distance(a.home)
@@ -104,7 +121,13 @@ def experience_tick(world: WorldState, access) -> None:
         if key not in a.known_chunks:
             a.known_chunks.append(key)
         a.known_chunks = a.known_chunks[-128:]
-        _, resources = access.visible(a.position, 8)
+        resources = access.visible_resources(a.position, sight)
+        from app.simulation.engineering.weathering import observe_ruins
+
+        observe_ruins(world, a, world.tick, sight)
+        from app.simulation.cognition.tiers import observe_food
+
+        observe_food(a, resources, world.tick)
         memory = dict(a.food_memory)
         for r in resources:
             if r.kind == "food":

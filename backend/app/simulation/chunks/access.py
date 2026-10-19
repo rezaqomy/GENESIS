@@ -30,14 +30,38 @@ class ChunkCache:
         return chunk
 
 
+def regeneration_interval(base: int, kind: str) -> int:
+    # A day is 240 ticks: berries recover one portion per two days at default speed.
+    return base * 24 if kind == "food" else base
+
+
+def recovered_quantity(
+    quantity: int, capacity: int, harvested_tick: int, tick: int, base_interval: int, kind: str
+) -> int:
+    interval = regeneration_interval(base_interval, kind)
+    if not interval:
+        return quantity
+    # Fruit ripens after elapsed time, never at a global boundary just after picking.
+    gains = (
+        max(0, tick - harvested_tick) // interval
+        if kind == "food"
+        else max(0, tick // interval - harvested_tick // interval)
+    )
+    return min(capacity, quantity + gains)
+
+
 def quantity_at(world: WorldState, resource: Resource) -> int:
     change = world.resource_modifications.get(resource.id)
     if change is None:
         return resource.capacity
-    interval = world.config.regeneration_ticks
-    # Lazy catch-up counts global regeneration boundaries, independent of activation/camera.
-    gains = world.tick // interval - change.tick // interval if interval else 0
-    return min(resource.capacity, change.quantity + max(0, gains))
+    return recovered_quantity(
+        change.quantity,
+        resource.capacity,
+        change.tick,
+        world.tick,
+        world.config.regeneration_ticks,
+        resource.kind,
+    )
 
 
 class WorldAccess:
@@ -132,6 +156,23 @@ class WorldAccess:
                     if r.position.distance(center) <= radius
                 )
         return tiles, resources
+
+    def visible_resources(self, center: Position, radius: int) -> list[Resource]:
+        """Resource-only perception avoids allocating hundreds of unused tile copies."""
+        if not self.world.config.infinite:
+            return [
+                r for r in self.world.resources.values() if r.position.distance(center) <= radius
+            ]
+        resources = []
+        for cy in range((center.y - radius) // SIZE, (center.y + radius) // SIZE + 1):
+            for cx in range((center.x - radius) // SIZE, (center.x + radius) // SIZE + 1):
+                chunk = self.cache.get(cx, cy)
+                resources.extend(
+                    self.resource(r.id)
+                    for r in chunk.resources.values()
+                    if r.position.distance(center) <= radius
+                )
+        return resources
 
     def active_keys(self) -> list[str]:
         radius = self.world.config.active_radius

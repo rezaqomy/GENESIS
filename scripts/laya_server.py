@@ -18,7 +18,7 @@ REVISION = os.getenv(
 class Request(BaseModel):
     model_config = ConfigDict(extra="forbid")
     state: str = Field(max_length=10000)
-    criteria: dict[str, str] = Field(min_length=1, max_length=16)
+    criteria: dict[str, str] = Field(min_length=1, max_length=32)
 
 
 @asynccontextmanager

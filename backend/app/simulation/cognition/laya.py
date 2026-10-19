@@ -1,9 +1,18 @@
 """Typed Laya choices over bounded, human-readable local observations."""
 
+from app.simulation.cognition.tiers import memory_context
+
 GOALS = {
+    "make_food_space": "Abandon surplus materials to carry life-saving meals.",
+    "supply_farm": "Bring water to a visible community farm to keep food growing.",
+    "experiment_shelter": "Test materials and joints or study a nearby structure.",
+    "experiment_tool": (
+        "Invent an assembly: test materials, shapes and joints, or study a nearby real tool; "
+        "learn from failures and improve designs."
+    ),
     "eat": "Eat carried food to relieve hunger.",
     "rest": "Recover energy and reduce exhaustion.",
-    "find_food": "Find and gather food to replenish supplies.",
+    "find_food": "Find and gather food; search new local terrain when known patches are depleted.",
     "return_home": "Return home for comfort, company or resupply.",
     "socialize": "Spend time with a visible companion to relieve loneliness.",
     "seek_safety": "Seek protection from fear, exposure or danger.",
@@ -25,8 +34,16 @@ def request(observation, goals):
     a = observation.self_agent
     traits = ", ".join(f"{k}={v:.1f}" for k, v in a.personality.model_dump().items())
     feelings = ", ".join(f"{k}={v:.1f}" for k, v in a.psychology.model_dump().items())
-    episodes = [m for m in a.memories if m.kind in ("failure", "dialogue")][-2:]
-    episodes += a.memories[-2:]
+    memory = memory_context(a, observation.tick, observation.environment, a.decision.selected_goal)
+    episodes = memory["recalled"] or memory["legacy_recent"]
+    tool_evidence = [
+        {
+            "design": trial.design.model_dump(),
+            "measured": trial.performance,
+            "feedback": trial.feedback,
+        }
+        for trial in (a.inventions.trials[-2:] if a.inventions else [])
+    ]
     state = (
         f"Villager {a.name}. Hunger {a.hunger}/100 (100=starving), energy {a.energy}/100, "
         f"health {a.health}/100. Carried food {a.inventory.food}, "
@@ -36,10 +53,18 @@ def request(observation, goals):
         f"Weather {observation.environment.get('weather')}; "
         f"night={observation.environment.get('night')}. "
         f"Visible companions {len(observation.peers)}. "
-        f"Recent experiences: {'; '.join(m.text[:120] for m in episodes)}. "
+        f"Vision range {observation.vision_radius} grid tiles; unseen places are unknown. "
+        f"Tool trial evidence: {tool_evidence}. "
+        f"Tool experiment progress: {a.inventions.experiment_steps if a.inventions else 0}/3. "
+        f"Relevant experiences: {'; '.join(m['text'][:120] for m in episodes)}. "
+        f"Observed food (may be stale): {memory['food_facts']}. "
+        f"Practical lessons: {memory['lessons']}. "
+        f"Current task: {memory['task']}. Verified skills: {memory['verified_skills']}. "
         f"Learned preferences: {a.habits}. "
+        f"Shelter experiments: {len(a.housing.trials) if a.housing else 0}; "
+        f"observed construction lessons: {a.housing.insights if a.housing else []}. "
         f"Community food reserves: "
-        f"{(observation.settlement or {}).get('food_reserves', 0)}."
+        f"{(observation.settlement or {}).get('food_reserves', 'unknown (outside sight)')}."
     )
     return {"state": state, "criteria": {g: GOALS.get(g, g.replace("_", " ")) for g in goals}}
 

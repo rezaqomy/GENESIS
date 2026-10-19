@@ -1,5 +1,15 @@
+from app.simulation.actions.provisions import carrying_room
+from app.simulation.engineering.housing import (
+    HOUSING,
+    best_design,
+    construction_cost,
+    knowledge,
+    prototype_cost,
+    tested,
+    workmanship,
+)
 from app.simulation.models.domain import RESOURCE_KINDS, Action, Building, WorldState
-from app.simulation.settlements.effects import BUILD_COSTS, TOOL_COSTS
+from app.simulation.settlements.effects import BUILD_COSTS, TOOL_COSTS, building_usable
 
 
 def storage_access(world, agent):
@@ -12,7 +22,7 @@ def storage_access(world, agent):
         for k in s.buildings
         if k in world.buildings
         and world.buildings[k].kind == "storage"
-        and world.buildings[k].progress == 100
+        and building_usable(world.buildings[k])
     ]
     return s if any(agent.position.distance(p) <= 2 for p in positions) else None
 
@@ -41,7 +51,35 @@ def pay(cost, sources):
 
 def validate_construction(world: WorldState, intent, access) -> str | None:
     a = world.agents[intent.actor_id]
-    if intent.action in (Action.STORE, Action.WITHDRAW):
+    if intent.action == Action.EXPERIMENT_TOOL or (
+        intent.action == Action.CRAFT and world.config.infinite
+    ):
+        from app.simulation.engineering.invention import validate
+
+        return validate(world, a, intent)
+    if intent.action == Action.EXPERIMENT:
+        if a.energy < 3:
+            return "Not enough energy for an experiment"
+        if intent.design is None:
+            return "An experiment requires a material and support hypothesis"
+        if intent.building_id:
+            b = world.buildings.get(intent.building_id)
+            if not b or b.kind not in HOUSING or b.design != intent.design:
+                return "Study requires a real observable shelter design"
+            if a.position.distance(b.position) > 1:
+                return "Study structure must be within one tile"
+        else:
+            ongoing = (
+                a.housing
+                and a.housing.experiment == intent.design
+                and a.housing.experiment_steps > 0
+                and a.housing.studying_id is None
+            )
+            if not ongoing and not affordable(
+                prototype_cost(intent.design), materials(world, a, a.position)
+            ):
+                return "Insufficient prototype materials"
+    elif intent.action in (Action.STORE, Action.WITHDRAW):
         s = storage_access(world, a)
         if s is None:
             return "Shared storage must be within two tiles"
@@ -52,9 +90,16 @@ def validate_construction(world: WorldState, intent, access) -> str | None:
         )
         if getattr(source, intent.item) < intent.amount:
             return "Storage transfer lacks requested quantity"
-        if destination.total + intent.amount > destination.capacity:
+        room = (
+            carrying_room(destination, intent.item, communal=intent.action == Action.STORE)
+            if world.config.infinite
+            else destination.capacity - destination.total
+        )
+        if intent.amount > room:
             return "Storage destination is full"
     elif intent.action == Action.CRAFT:
+        if a.energy < 3:
+            return "Not enough energy for crafting"
         if intent.item not in TOOL_COSTS:
             return "Unsupported tool recipe"
         if a.inventory.tools.get(intent.item, 0) > 0:
@@ -64,10 +109,7 @@ def validate_construction(world: WorldState, intent, access) -> str | None:
         benches = [
             b
             for b in world.buildings.values()
-            if b.kind == "workbench"
-            and b.progress == 100
-            and b.durability > 0
-            and b.position.distance(a.position) <= 1
+            if b.kind == "workbench" and building_usable(b) and b.position.distance(a.position) <= 1
         ]
         if not benches:
             return "Crafting requires a nearby completed workbench"
@@ -75,7 +117,12 @@ def validate_construction(world: WorldState, intent, access) -> str | None:
             return "Insufficient crafting materials"
     elif intent.action == Action.REFUEL:
         b = world.buildings.get(intent.building_id or "")
-        if not b or b.kind != "campfire" or b.position.distance(a.position) > 1 or b.progress < 100:
+        if (
+            not b
+            or b.kind != "campfire"
+            or b.position.distance(a.position) > 1
+            or not building_usable(b)
+        ):
             return "Completed campfire must be within one tile"
         if b.fuel >= 96:
             return "Campfire fuel is full"
@@ -92,9 +139,21 @@ def validate_construction(world: WorldState, intent, access) -> str | None:
         if tile is None:
             return "Invalid build site"
         b = next((b for b in world.buildings.values() if b.position == intent.target), None)
+        design = (
+            b.design if b and b.design and b.durability > 0 else (intent.design or best_design(a))
+        )
+        if intent.building_kind in HOUSING:
+            if design is None or not tested(a, design):
+                return "No tested shelter design; experiment or study before building"
+        cost = construction_cost(intent.building_kind, design)
+        if intent.building_kind in ("wooden_wall", "stone_wall", "watchtower"):
+            if any(v.alive and v.position == intent.target for v in world.agents.values()):
+                return "Cannot build an obstacle on an agent"
         if b:
-            if b.kind != intent.building_kind or b.progress == 100:
+            if b.kind != intent.building_kind or (b.progress == 100 and b.durability > 0):
                 return "Build site already occupied by a structure"
+            if b.durability == 0 and not affordable(cost, materials(world, a, intent.target)):
+                return "Insufficient reconstruction materials"
         else:
             if intent.building_kind == "bridge":
                 if tile.terrain.value != "water":
@@ -103,18 +162,23 @@ def validate_construction(world: WorldState, intent, access) -> str | None:
                 return "Build site is not walkable"
             if intent.building_kind == "farm" and tile.terrain.value not in ("soil", "grass"):
                 return "Farm requires fertile soil or grass"
-            if intent.building_kind in ("wooden_wall", "stone_wall", "watchtower"):
-                if any(v.alive and v.position == intent.target for v in world.agents.values()):
-                    return "Cannot build an obstacle on an agent"
-            if not affordable(
-                BUILD_COSTS[intent.building_kind], materials(world, a, intent.target)
-            ):
+            if not affordable(cost, materials(world, a, intent.target)):
                 return "Insufficient construction materials"
     return None
 
 
 def resolve_construction(world, intent, access) -> str:
     a = world.agents[intent.actor_id]
+    if intent.action == Action.EXPERIMENT_TOOL or (
+        intent.action == Action.CRAFT and world.config.infinite
+    ):
+        from app.simulation.engineering.invention import resolve
+
+        return resolve(world, a, intent)
+    if intent.action == Action.EXPERIMENT:
+        from app.simulation.engineering.housing import experiment
+
+        return experiment(world, a, intent)
     if intent.action in (Action.STORE, Action.WITHDRAW):
         s = storage_access(world, a)
         source, destination = (
@@ -135,8 +199,9 @@ def resolve_construction(world, intent, access) -> str:
         b.fuel += 4
         return f"{a.name} refueled the campfire"
     b = next((b for b in world.buildings.values() if b.position == intent.target), None)
+    design = (intent.design or best_design(a)) if intent.building_kind in HOUSING else None
     if b is None:
-        pay(BUILD_COSTS[intent.building_kind], materials(world, a, intent.target))
+        pay(construction_cost(intent.building_kind, design), materials(world, a, intent.target))
         key = f"building:{intent.target.x}:{intent.target.y}"
         b = Building(
             id=key,
@@ -146,11 +211,33 @@ def resolve_construction(world, intent, access) -> str:
             owner_id=a.id,
             created_tick=world.tick + 1,
         )
+        if design is not None:
+            b.design, b.quality = design.model_copy(), 0
         world.buildings[key] = b
         if b.settlement_id in world.settlements:
             world.settlements[b.settlement_id].buildings.append(key)
+    elif b.durability == 0:
+        pay(construction_cost(b.kind, design), materials(world, a, b.position))
+        b.progress, b.durability = 0, 100
+        b.fuel = 0
+        if design is not None:
+            b.design, b.quality, b.work_units, b.contributors = design.model_copy(), 0, 0, []
+            b.last_damage_cause = ""
+            b.last_damage_tick = 0
+    if b.kind in HOUSING and b.design is None and design is not None:
+        b.design, b.quality = design.model_copy(), 0
+    if b.design is not None:
+        k = knowledge(a)
+        quality = workmanship(a, b.design, world.config.seed, world.tick + 1, f"building:{b.id}")
+        b.quality = round((b.quality * b.work_units + quality) / (b.work_units + 1), 4)
+        b.work_units += 1
+        if a.id not in b.contributors:
+            b.contributors = [*b.contributors, a.id][-30:]
+        k.practice += 2
     b.progress = min(100, b.progress + 25)
     a.energy = max(0, a.energy - 4)
+    if b.progress == 100 and b.design is not None:
+        b.durability = round(35 + b.quality * 65)
     if b.kind == "campfire" and b.progress == 100:
         b.fuel = 4
     if b.kind == "remote_camp" and b.progress == 100:
@@ -164,4 +251,5 @@ def resolve_construction(world, intent, access) -> str:
             a.home = b.position.model_copy()
             a.time_away = 0
     verb = "completed" if b.progress == 100 else "worked on"
-    return f"{a.name} {verb} {b.kind.replace('_', ' ')} ({b.progress}%)"
+    quality_note = f", workmanship {b.quality:.0%}" if b.design else ""
+    return f"{a.name} {verb} {b.kind.replace('_', ' ')} ({b.progress}%{quality_note})"

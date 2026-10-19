@@ -39,6 +39,9 @@ class Action(StrEnum):
     CRAFT = "CRAFT"
     BUILD = "BUILD"
     REFUEL = "REFUEL"
+    EXPERIMENT = "EXPERIMENT"
+    EXPERIMENT_TOOL = "EXPERIMENT_TOOL"
+    DISCARD = "DISCARD"
 
 
 class Tile(Model):
@@ -133,6 +136,147 @@ class Episode(Model):
     peer_id: str | None = None
 
 
+class MemoryRecord(Model):
+    id: str
+    tick: int = Field(ge=0)
+    kind: Literal["action", "failure", "dialogue", "reflection"]
+    text: str = Field(max_length=500)
+    goal: str = ""
+    action: str = ""
+    context: str = ""
+    outcome: float = Field(default=0, ge=-1, le=1)
+    importance: float = Field(default=0, ge=0, le=1)
+    position: Position
+    target: Position | None = None
+    peer_id: str | None = None
+
+
+class ResourceFact(Model):
+    resource_id: str
+    position: Position
+    quantity: int = Field(ge=0)
+    observed_tick: int = Field(ge=0)
+
+
+class PracticalLesson(Model):
+    goal: str
+    action: str
+    context: str
+    samples: int = Field(default=0, ge=0)
+    mean_outcome: float = Field(default=0, ge=-1, le=1)
+    updated_tick: int = Field(ge=0)
+
+
+class AgentMemory(Model):
+    short_term: list[MemoryRecord] = Field(default_factory=list, max_length=24)
+    long_term: list[MemoryRecord] = Field(default_factory=list, max_length=64)
+    facts: dict[str, ResourceFact] = Field(default_factory=dict, max_length=64)
+    lessons: dict[str, PracticalLesson] = Field(default_factory=dict, max_length=32)
+    recalled_ids: list[str] = Field(default_factory=list, max_length=6)
+
+
+class TaskPlan(Model):
+    id: str
+    kind: Literal["forage", "construction", "expedition"]
+    context: str
+    stage: str
+    status: Literal["active", "succeeded", "failed", "cancelled"] = "active"
+    started_tick: int = Field(ge=0)
+    last_progress_tick: int = Field(ge=0)
+    deadline: int = Field(ge=0)
+    origin: Position
+    target: Position | None = None
+    building_kind: str | None = None
+    initial_food: int = 0
+    initial_hunger: int = 0
+    discoveries: int = Field(default=0, ge=0)
+    best_distance: int | None = None
+    actions: int = Field(default=0, ge=0)
+    moves: int = Field(default=0, ge=0)
+    exploration_moves: int = Field(default=0, ge=0)
+    work_units: int = Field(default=0, ge=0)
+    energy_spent: int = Field(default=0, ge=0)
+    max_home_distance: int = Field(default=0, ge=0)
+    reason: str = Field(default="", max_length=160)
+
+
+class TaskOutcome(Model):
+    id: str
+    kind: str
+    status: Literal["succeeded", "failed", "cancelled"]
+    reason: str
+    started_tick: int
+    ended_tick: int
+    actions: int
+    energy_spent: int
+    food_delta: int
+    hunger_delta: int
+    discoveries: int
+
+
+class VerifiedSkill(Model):
+    kind: str
+    context: str
+    stages: list[str] = Field(max_length=4)
+    successes: int = Field(default=0, ge=0)
+    failures: int = Field(default=0, ge=0)
+    mean_ticks: float = Field(default=0, ge=0)
+    updated_tick: int
+
+
+class ShelterDesign(Model):
+    frame: Literal["wood", "stone"] = "wood"
+    roof: Literal["fiber", "wood"] = "fiber"
+    bracing: bool = False
+    raised_foundation: bool = False
+
+
+class DesignTrial(Model):
+    design: ShelterDesign
+    tick: int
+    score: float = Field(ge=0, le=1)
+    stood: bool
+    source: Literal["experiment", "study"] = "experiment"
+
+
+class HousingKnowledge(Model):
+    trials: list[DesignTrial] = Field(default_factory=list, max_length=12)
+    practice: int = Field(default=0, ge=0)
+    experiment: ShelterDesign | None = None
+    experiment_steps: int = Field(default=0, ge=0, le=3)
+    studying_id: str | None = None
+    insights: list[str] = Field(default_factory=list, max_length=4)
+    observed_failures: dict[str, int] = Field(default_factory=dict, max_length=32)
+
+
+class ToolDesign(Model):
+    """Physical choices, not a named recipe; one object can serve several purposes."""
+
+    core: Literal["wood", "stone", "fiber", "clay", "ore"]
+    grip: Literal["none", "wood", "stone", "fiber"] = "wood"
+    binding: Literal["none", "fiber", "clay"] = "none"
+    form: Literal["rounded", "edge", "point", "wrapped"] = "rounded"
+    length: int = Field(default=1, ge=1, le=3)
+    fueled: bool = False
+
+
+class ToolTrial(Model):
+    design: ToolDesign
+    tick: int
+    performance: dict[Literal["cut", "mine", "light"], float]
+    feedback: list[str] = Field(max_length=5)
+    source: Literal["experiment", "study", "craft"] = "experiment"
+
+
+class ToolKnowledge(Model):
+    trials: list[ToolTrial] = Field(default_factory=list, max_length=32)
+    designs: dict[str, ToolTrial] = Field(default_factory=dict, max_length=24)
+    practice: int = Field(default=0, ge=0)
+    experiment: ToolDesign | None = None
+    experiment_steps: int = Field(default=0, ge=0, le=3)
+    studying_peer: str | None = None
+
+
 class Agent(Model):
     id: str
     name: str
@@ -143,6 +287,9 @@ class Agent(Model):
     energy: int = Field(default=100, ge=0, le=100)
     position: Position
     inventory: Inventory = Field(default_factory=Inventory)
+    vision_radius: int = Field(default=8, ge=1, le=12)
+    housing: HousingKnowledge | None = None
+    inventions: ToolKnowledge | None = None
     destination: Position | None = None
     current_action: Action = Action.IDLE
     alive: bool = True
@@ -164,6 +311,10 @@ class Agent(Model):
     nearby_agents: list[str] = Field(default_factory=list)
     relationships: dict[str, float] = Field(default_factory=dict)
     memories: list[Episode] = Field(default_factory=list, max_length=48)
+    memory: AgentMemory | None = None
+    task: TaskPlan | None = None
+    task_history: list[TaskOutcome] = Field(default_factory=list, max_length=8)
+    skills: dict[str, VerifiedSkill] = Field(default_factory=dict, max_length=8)
     habits: dict[str, float] = Field(default_factory=dict)
     cognition_source: str = "utility"
     thought: str = ""
@@ -232,6 +383,12 @@ class Building(Model):
     fuel: int = Field(default=0, ge=0, le=100)
     food: int = Field(default=0, ge=0)
     created_tick: int = 0
+    design: ShelterDesign | None = None
+    quality: float = Field(default=1, ge=0, le=1)
+    work_units: int = Field(default=0, ge=0)
+    contributors: list[str] = Field(default_factory=list, max_length=30)
+    last_damage_cause: str = ""
+    last_damage_tick: int = 0
 
 
 class Settlement(Model):
@@ -273,10 +430,15 @@ class AgentIntent(Model):
     resource_id: str | None = None
     destination: Position | None = None
     decision: Decision | None = None
+    recalled_ids: list[str] = Field(default_factory=list, max_length=6)
+    task: TaskPlan | None = None
+    navigation_note: str = Field(default="", max_length=160)
     item: str | None = None
     amount: int = Field(default=1, ge=1, le=8)
     building_kind: str | None = None
     building_id: str | None = None
+    design: ShelterDesign | None = None
+    tool_design: ToolDesign | None = None
     cognition_source: str = "utility"
     thought: str = Field(default="", max_length=300)
     observation_tick: int | None = None

@@ -15,7 +15,7 @@ cleanup() {
   wait 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
-if [[ "${GENESIS_COGNITION:-1}" == "1" && "${GENESIS_DECISION_PROVIDER:-laya}" == "ollama" && "${GENESIS_OLLAMA_URL:-http://localhost:11435}" == "http://localhost:11435" ]]; then
+if [[ "${GENESIS_COGNITION:-1}" == "1" ]] && { [[ "${GENESIS_DECISION_PROVIDER:-laya}" == "ollama" && "${GENESIS_OLLAMA_URL:-http://localhost:11435}" == "http://localhost:11435" ]] || [[ "${GENESIS_DIALOGUE_URL:-}" == "http://localhost:11435/v1" ]]; }; then
   if ! curl --fail --silent --max-time 2 http://localhost:11435/api/tags >/dev/null; then
     ./scripts/local-models.sh > /tmp/genesis-ollama.log 2>&1 &
     model_pid=$!

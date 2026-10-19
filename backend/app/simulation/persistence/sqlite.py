@@ -1,5 +1,6 @@
 import json
 import sqlite3
+from contextlib import contextmanager
 
 from app.simulation.events.reducer import WorldEvent, authoritative_state, reduce_event, state_hash
 from app.simulation.models.domain import WorldState
@@ -8,6 +9,7 @@ from app.simulation.models.domain import WorldState
 class EventStore:
     def __init__(self, path: str):
         self.connection = sqlite3.connect(path)
+        self.transaction_depth = 0
         self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.executescript("""
             CREATE TABLE IF NOT EXISTS events (
@@ -26,8 +28,21 @@ class EventStore:
                 BEGIN SELECT RAISE(ABORT, 'Event log is append-only'); END;
         """)
 
+    @contextmanager
+    def transaction(self):
+        """Nested engine operations share one commit, including command + step."""
+        if self.transaction_depth:
+            yield
+            return
+        self.transaction_depth += 1
+        try:
+            with self.connection:
+                yield
+        finally:
+            self.transaction_depth -= 1
+
     def append(self, events: list[WorldEvent], snapshot: WorldState | None = None) -> None:
-        with self.connection:
+        with self.transaction():
             for e in events:
                 self.connection.execute(
                     "INSERT INTO events VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -61,6 +76,20 @@ class EventStore:
             "ORDER BY sequence_number LIMIT ?",
             (run_id, after, limit),
         ).fetchall()
+        return self.decode_rows(rows)
+
+    def journal(self, run_id: str, after: int, through: int, limit: int = 1500):
+        """Latest bounded human-facing history, with an explicit coverage watermark."""
+        rows = self.connection.execute(
+            "SELECT * FROM events WHERE run_id=? AND sequence_number>? "
+            "AND sequence_number<=? AND json_type(payload, '$.message') IS NOT NULL "
+            "ORDER BY sequence_number DESC LIMIT ?",
+            (run_id, after, through, limit),
+        ).fetchall()
+        return self.decode_rows(reversed(rows))
+
+    @staticmethod
+    def decode_rows(rows) -> list[WorldEvent]:
         return [
             WorldEvent(
                 event_id=r[0],

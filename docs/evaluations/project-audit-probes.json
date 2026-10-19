@@ -1,0 +1,143 @@
+{
+  "urgent_low_energy": {
+    "fixture": "flat finite world with UtilityPolicy and full Engine",
+    "alive": true,
+    "hunger": 66,
+    "trace": [
+      {
+        "tick": 1,
+        "type": "ACTION_REJECTED",
+        "action": "MOVE",
+        "message": "Not enough energy"
+      },
+      {
+        "tick": 2,
+        "type": "ACTION_REJECTED",
+        "action": "MOVE",
+        "message": "Not enough energy"
+      },
+      {
+        "tick": 3,
+        "type": "ACTION_REJECTED",
+        "action": "MOVE",
+        "message": "Not enough energy"
+      },
+      {
+        "tick": 4,
+        "type": "ACTION_RESOLVED",
+        "action": "REST",
+        "message": "Probe rested"
+      },
+      {
+        "tick": 5,
+        "type": "ACTION_RESOLVED",
+        "action": "REST",
+        "message": "Probe rested"
+      },
+      {
+        "tick": 6,
+        "type": "ACTION_RESOLVED",
+        "action": "REST",
+        "message": "Probe rested"
+      },
+      {
+        "tick": 7,
+        "type": "ACTION_RESOLVED",
+        "action": "REST",
+        "message": "Probe rested"
+      },
+      {
+        "tick": 8,
+        "type": "ACTION_RESOLVED",
+        "action": "REST",
+        "message": "Probe rested"
+      },
+      {
+        "tick": 9,
+        "type": "ACTION_RESOLVED",
+        "action": "REST",
+        "message": "Probe rested"
+      },
+      {
+        "tick": 10,
+        "type": "ACTION_RESOLVED",
+        "action": "REST",
+        "message": "Probe rested"
+      },
+      {
+        "tick": 11,
+        "type": "ACTION_RESOLVED",
+        "action": "IDLE",
+        "message": "Probe waited"
+      },
+      {
+        "tick": 12,
+        "type": "ACTION_RESOLVED",
+        "action": "MOVE",
+        "message": "Probe moved to (3, 2)"
+      },
+      {
+        "tick": 13,
+        "type": "ACTION_RESOLVED",
+        "action": "MOVE",
+        "message": "Probe moved to (4, 2)"
+      },
+      {
+        "tick": 14,
+        "type": "ACTION_RESOLVED",
+        "action": "GATHER",
+        "message": "Probe gathered food"
+      },
+      {
+        "tick": 15,
+        "type": "ACTION_RESOLVED",
+        "action": "EAT",
+        "message": "Probe ate berries"
+      },
+      {
+        "tick": 16,
+        "type": "ACTION_RESOLVED",
+        "action": "GATHER",
+        "message": "Probe gathered food"
+      }
+    ]
+  },
+  "destroyed_storage": {
+    "durability": 0,
+    "distance_to_center": 100,
+    "grants_access": true
+  },
+  "stale_explanation": {
+    "current_source": "utility",
+    "retained_thought": "Old model explanation"
+  },
+  "persistence_failure": {
+    "live_tick": 1,
+    "persisted_tick": 0,
+    "hash_matches": false,
+    "live_sequence": 23,
+    "persisted_sequence": 1
+  },
+  "dialogue_blocks_refresh": {
+    "local_batches_started": 1,
+    "choices_published_before_speech": 2,
+    "pending_task_keys": [
+      "batch"
+    ],
+    "new_local_batch_started": false
+  },
+  "slow_client_journal": {
+    "published_events": 300,
+    "events_in_latest_packet": 1,
+    "events_in_recent_resync_window": 250,
+    "unrecoverable_without_event_api": 50,
+    "event_api_rows": 301
+  },
+  "command_starvation": {
+    "commands": 14,
+    "command_interval_ms": 50,
+    "busy_period_ms_at_least": 700,
+    "tick_after_busy_period": 0,
+    "tick_after_quiet_period": 1
+  }
+}

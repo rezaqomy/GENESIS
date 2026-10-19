@@ -34,6 +34,8 @@ def test_unload_reload_and_lazy_regeneration():
     assert len(e.access.cache.entries) <= e.world.config.chunk_cache_size
     assert e.access.resource(r.id).quantity == 5
     e.world.tick = 60
+    assert e.access.resource(r.id).quantity == 5
+    e.world.tick = 1440
     assert e.access.resource(r.id).quantity == 8
     store.close()
 

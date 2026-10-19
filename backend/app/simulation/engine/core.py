@@ -1,13 +1,53 @@
+from functools import wraps
 from time import perf_counter
 from uuid import uuid4
 
-from app.simulation.actions.resolver import advance_physiology, resolve_intent
-from app.simulation.chunks.access import WorldAccess
+from app.simulation.actions.resolver import advance_physiology, resolve_intent, resolve_survival
+from app.simulation.chunks.access import WorldAccess, recovered_quantity, regeneration_interval
 from app.simulation.chunks.generator import chunk_coord, chunk_key
 from app.simulation.engine.generation import generate_world
-from app.simulation.events.reducer import WorldEvent, agent_state, authoritative_state, state_hash
+from app.simulation.events.reducer import (
+    WorldEvent,
+    agent_state,
+    authoritative_state,
+    building_state,
+    state_hash,
+)
 from app.simulation.models.domain import Action, AgentIntent, WorldConfig
 from app.simulation.persistence.sqlite import EventStore
+
+
+def atomic_update(method):
+    """Publish mutations only together with their durable log; rollback on any failure."""
+
+    @wraps(method)
+    def update(self, *args, **kwargs):
+        if getattr(self, "_updating", False):
+            return method(self, *args, **kwargs)
+        previous_world = getattr(self, "world", None)
+        backup = previous_world.model_copy(deep=True) if previous_world is not None else None
+        previous_access = getattr(self, "access", None)
+        previous_run = getattr(self, "run_id", None)
+        previous_sequence, previous_metrics = self.sequence, dict(self.metrics)
+        self._updating = True
+        try:
+            with self.store.transaction():
+                return method(self, *args, **kwargs)
+        except Exception:
+            self.sequence, self.metrics = previous_sequence, previous_metrics
+            if backup is not None:
+                self.world, self.run_id = backup, previous_run
+                self.access = WorldAccess(
+                    backup, previous_access.cache if previous_access else None
+                )
+            # Inference may hold observations of the uncommitted tick.
+            if hasattr(self.policy, "reset"):
+                self.policy.reset(previous_run or "")
+            raise
+        finally:
+            self._updating = False
+
+    return update
 
 
 class Engine:
@@ -42,7 +82,8 @@ class Engine:
             payload=payload,
         )
 
-    def reset(self, config: WorldConfig) -> list[WorldEvent]:
+    @atomic_update
+    def reset(self, config: WorldConfig, record_command: bool = False) -> list[WorldEvent]:
         self.run_id = str(uuid4())
         self.sequence = 0
         self.world = generate_world(config)
@@ -56,9 +97,17 @@ class Engine:
                 },
             )
         ]
+        if record_command:
+            events.append(
+                self.event(
+                    "COMMAND_ACCEPTED",
+                    {"command": "reset", "seed": config.seed, "message": "Simulation: reset"},
+                )
+            )
         self.store.append(events, self.world)
         return events
 
+    @atomic_update
     def command(self, command: str, value: float | None = None) -> list[WorldEvent]:
         payload = {"command": command, "message": f"Simulation: {command}"}
         if command in ("start", "resume"):
@@ -83,6 +132,7 @@ class Engine:
             events += self.tick()
         return events
 
+    @atomic_update
     def tick(self, intents: list[AgentIntent] | None = None) -> list[WorldEvent]:
         started = perf_counter()
         decision_started = started
@@ -116,6 +166,10 @@ class Engine:
                     if hasattr(self.policy, "decide_batch")
                     else [self.policy.decide(o) for o in observations]
                 )
+                if world.config.infinite:
+                    from app.simulation.planning.navigation import coordinate_movements
+
+                    intents = coordinate_movements(observations, intents, world.tick)
             else:
                 intents = [
                     AgentIntent(actor_id=a.id, action=Action.IDLE)
@@ -130,6 +184,12 @@ class Engine:
             if intent.actor_id in seen:
                 continue
             seen.add(intent.actor_id)
+            from app.simulation.cognition.tiers import action_snapshot
+
+            before_action = action_snapshot(world.agents.get(intent.actor_id))
+            actor = world.agents.get(intent.actor_id)
+            if actor and actor.alive and intent.task is not None:
+                actor.task = intent.task.model_copy(deep=True)
             accepted, message = resolve_intent(world, intent, self.access)
             actor = world.agents.get(intent.actor_id)
             if actor and actor.alive and intent.decision is not None:
@@ -160,7 +220,35 @@ class Engine:
                     )
             from app.simulation.cognition.memory import experience
 
-            experience(world, actor, intent, accepted, message, next_tick)
+            experience(
+                world, actor, intent, accepted, message, next_tick, before_action, self.access
+            )
+            if world.config.infinite:
+                from app.simulation.planning.tasks import update_task
+
+                outcome = update_task(world, actor, intent, accepted, before_action, next_tick)
+                if outcome:
+                    events.append(
+                        self.event(
+                            "TASK_COMPLETED",
+                            {
+                                "outcome": outcome.model_dump(mode="json"),
+                                "message": f"{actor.name}: {outcome.kind} {outcome.status}: "
+                                f"{outcome.reason}",
+                            },
+                            actor.id,
+                            next_tick,
+                        )
+                    )
+                if intent.navigation_note:
+                    events.append(
+                        self.event(
+                            "NAVIGATION_ADJUSTED",
+                            {"message": intent.navigation_note},
+                            intent.actor_id,
+                            next_tick,
+                        )
+                    )
             if intent.observation_tick is not None:
                 events.append(
                     self.event(
@@ -181,7 +269,8 @@ class Engine:
                         "DIALOGUE",
                         {
                             "peer_id": intent.peer_id,
-                            "message": f"{actor.name}: {intent.utterance}",
+                            "message": f"{actor.name} → "
+                            f"{world.agents[intent.peer_id].name}: {intent.utterance}",
                         },
                         intent.actor_id,
                         next_tick,
@@ -201,13 +290,22 @@ class Engine:
                     next_tick,
                 )
             )
-        interval = world.config.regeneration_ticks
-        if not world.config.infinite and interval and next_tick % interval == 0:
-            for resource in world.resources.values():
-                resource.quantity = min(resource.capacity, resource.quantity + 1)
         if world.config.infinite:
+            resolve_survival(world)
+        interval = world.config.regeneration_ticks
+        if not world.config.infinite and interval:
+            for resource in world.resources.values():
+                if next_tick % regeneration_interval(interval, resource.kind) == 0:
+                    resource.quantity = min(resource.capacity, resource.quantity + 1)
+        if world.config.infinite:
+            from app.simulation.engineering.weathering import weather_damage
             from app.simulation.settlements.effects import settlement_tick
+            from app.simulation.settlements.environment import conditions
 
+            for event_type, payload in weather_damage(
+                world, next_tick, conditions(world.config.seed, next_tick)
+            ):
+                events.append(self.event(event_type, payload, tick=next_tick))
             settlement_tick(world, self.access)
             for s in world.settlements.values():
                 events.append(
@@ -222,7 +320,7 @@ class Engine:
                     events.append(
                         self.event(
                             "BUILDING_UPDATED",
-                            {"building": b.model_dump(mode="json")},
+                            {"building": building_state(b)},
                             tick=next_tick,
                         )
                     )
@@ -233,6 +331,26 @@ class Engine:
                             "TERRAIN_MODIFIED",
                             {"key": key, "tile": t.model_dump(mode="json")},
                             tick=next_tick,
+                        )
+                    )
+        # A plan can fail through exposure before its owner gets an action this tick.
+        if world.config.infinite:
+            from app.simulation.planning.tasks import finish_task
+
+            for agent in world.agents.values():
+                if not agent.alive and agent.task and agent.task.status == "active":
+                    outcome = finish_task(
+                        agent, "failed", "Actor died before completing the task", next_tick
+                    )
+                    events.append(
+                        self.event(
+                            "TASK_COMPLETED",
+                            {
+                                "outcome": outcome.model_dump(mode="json"),
+                                "message": f"{agent.name}: task failed after death",
+                            },
+                            agent.id,
+                            next_tick,
                         )
                     )
         for agent in world.agents.values():
@@ -275,7 +393,10 @@ class Engine:
                 restored = [
                     key
                     for key, m in world.resource_modifications.items()
-                    if m.quantity + next_tick // interval - m.tick // interval >= m.capacity
+                    if recovered_quantity(
+                        m.quantity, m.capacity, m.tick, next_tick, interval, key.rsplit(":", 1)[-1]
+                    )
+                    >= m.capacity
                 ]
                 for key in restored:
                     del world.resource_modifications[key]

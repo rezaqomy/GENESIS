@@ -128,7 +128,7 @@ export class WorldRenderer {
       let sprite=this.buildings.get(b.id)
       if(!sprite){sprite=this.sprite(b.kind,b.kind==='watchtower'?68:b.kind==='shelter'?64:48);this.entities.addChild(sprite);this.buildings.set(b.id,sprite)}
       sprite.position.set(b.position.x*TILE+16,b.position.y*TILE+28);sprite.zIndex=sprite.y+1
-      sprite.alpha=b.durability<=0?.2:b.progress<100?.35+b.progress/200:1
+      sprite.alpha=b.durability<=0?.2:b.progress<100?.35+b.progress/200:.45+.55*b.durability/100
     }
     this.influence.clear()
     for(const s of Object.values(w.settlements)){
@@ -136,8 +136,10 @@ export class WorldRenderer {
     }
     this.last=snapshot;this.drawDestination();this.syncChunks()
     for(const [id,r] of this.resources){
-      const mod=w.resource_modifications[id],interval=w.config.regeneration_ticks
-      const quantity=w.config.infinite?(mod?Math.min(r.resource.capacity,mod.quantity+(interval?Math.floor(w.tick/interval)-Math.floor(mod.tick/interval):0)):r.resource.capacity):(w.resources[id]?.quantity??0)
+      const mod=w.resource_modifications[id],isFood=r.resource.kind==='food'
+      const interval=w.config.regeneration_ticks*(isFood?24:1)
+      const gains=mod&&interval?Math.max(0,isFood?Math.floor((w.tick-mod.tick)/interval):Math.floor(w.tick/interval)-Math.floor(mod.tick/interval)):0
+      const quantity=w.config.infinite?(mod?Math.min(r.resource.capacity,mod.quantity+gains):r.resource.capacity):(w.resources[id]?.quantity??0)
       r.sprite.alpha=quantity>0?1:.22
     }
     if(tickChanged&&this.lastEffectTick!==w.tick&&useWorld.getState().effects){
@@ -197,9 +199,9 @@ export class WorldRenderer {
   private drawAtmosphere(effects:boolean){
     const env=this.last?.environment
     this.atmosphere.clear();this.weather.clear()
-    const darkness=Math.min(.34, Math.max(0, Math.cos((env?.phase??.5)*Math.PI*2))*.26+(env?.weather==='rain'?.08:0))
+    const darkness=Math.min(.34, Math.max(0, Math.cos((env?.phase??.5)*Math.PI*2))*.26+((env?.weather==='rain'||env?.weather==='storm')?.08:0))
     if(effects&&darkness)this.atmosphere.rect(0,0,this.app.screen.width,this.app.screen.height).fill({color:'#172d4d',alpha:darkness})
-    if(effects&&env?.weather==='rain')for(let i=0;i<45;i++){
+    if(effects&&(env?.weather==='rain'||env?.weather==='storm'))for(let i=0;i<45;i++){
       const x=(i*97+this.time*24)%this.app.screen.width,y=(i*61+this.time*210)%this.app.screen.height
       this.weather.moveTo(x,y).lineTo(x-3,y+10).stroke({color:'#d1e6dd',width:1,alpha:.2})
     }

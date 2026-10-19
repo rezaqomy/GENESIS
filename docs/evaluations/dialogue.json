@@ -1,0 +1,34 @@
+{
+  "model": "llama3.2:1b",
+  "scenario": "Isolated adjacent agents; real local inference, not production run",
+  "turns": [
+    {
+      "speaker": "Ada",
+      "message": "Ada \u2192 Finn: I've been thinking about our recent exploration, Finn. Given our current energy levels and hunger, we should prioritize finding shelter and food soon.",
+      "seconds": 33.53
+    },
+    {
+      "speaker": "Finn",
+      "message": "Finn \u2192 Ada: I'm not sure we should rush into finding shelter and food right now, Ada. We've just finished our last meal and don't know what's available in the area. Let's take some time to rest and recharge before deciding on a course of action.",
+      "seconds": 36.97
+    }
+  ],
+  "both_remember_both_turns": true,
+  "replay_matches": true,
+  "stats": {
+    "completed": 0,
+    "errors": 0,
+    "consumed": 0,
+    "last_error": null,
+    "decisions": 2,
+    "fallback": 2,
+    "dialogue_generated": 2,
+    "dialogue_delivered": 2,
+    "enabled": false,
+    "provider": "laya",
+    "model": "convaiinnovations/laya-multilingual",
+    "pending": 0,
+    "dialogue_pending": 0,
+    "dialogue_configured": true
+  }
+}

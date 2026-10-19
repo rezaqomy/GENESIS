@@ -1,0 +1,181 @@
+{
+  "date": "2026-10-18",
+  "hardware": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  6\nOn-line CPU(s) list:                     0-5\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Core(TM) i5-8500 CPU @ 3.00GHz\nCPU family:                              6\nModel:                                   158\nThread(s) per core:                      1\nCore(s) per socket:                      6\nSocket(s):                               1\nStepping:                                10\nCPU(s) scaling MHz:                      95%\nCPU max MHz:                             4100.0000\nCPU min MHz:                             800.0000\nBogoMIPS:                                6000.00\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nVirtualization:                          VT-x\nL1d cache:                               192 KiB (6 instances)\nL1i cache:                               192 KiB (6 instances)\nL2 cache:                                1.5 MiB (6 instances)\nL3 cache:                                9 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-5\nVulnerability Gather data sampling:      Vulnerable\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: Split huge pages\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT disabled\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT disabled\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Mitigation; Clear CPU buffers; SMT disabled\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Mitigation; IBRS\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; IBRS; IBPB conditional; STIBP disabled; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Mitigation; TSX disabled\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace\n",
+  "memory": "               total        used        free      shared  buff/cache   available\nMem:     24960872448 14255890432  2810327040  1498275840  9103855616 10704982016\nSwap:     4294963200  4124680192   170283008\n",
+  "live_samples_during_benchmark": [
+    {
+      "at": 1792316448.017063,
+      "tick": 1365,
+      "status": "running",
+      "cognition": {
+        "completed": 239,
+        "errors": 1,
+        "consumed": 2798,
+        "last_error": "local:ConnectError",
+        "decisions": 8030,
+        "fallback": 5232,
+        "enabled": true,
+        "provider": "laya",
+        "model": "convaiinnovations/laya-multilingual",
+        "pending": 1,
+        "dialogue_pending": 0,
+        "dialogue_configured": false
+      },
+      "metrics": {
+        "tick_duration_ms": 401.69,
+        "decision_duration_ms": 345.86,
+        "active_chunks": 15,
+        "loaded_chunks": 7,
+        "visual_cached_chunks": 8,
+        "payload_bytes": 538897
+      }
+    },
+    {
+      "at": 1792316458.168121,
+      "tick": 1381,
+      "status": "running",
+      "cognition": {
+        "completed": 249,
+        "errors": 1,
+        "consumed": 2849,
+        "last_error": "local:ConnectError",
+        "decisions": 8190,
+        "fallback": 5341,
+        "enabled": true,
+        "provider": "laya",
+        "model": "convaiinnovations/laya-multilingual",
+        "pending": 1,
+        "dialogue_pending": 0,
+        "dialogue_configured": false
+      },
+      "metrics": {
+        "tick_duration_ms": 392.62,
+        "decision_duration_ms": 341.04,
+        "active_chunks": 15,
+        "loaded_chunks": 7,
+        "visual_cached_chunks": 8,
+        "payload_bytes": 539571
+      }
+    },
+    {
+      "at": 1792316468.466739,
+      "tick": 1391,
+      "status": "running",
+      "cognition": {
+        "completed": 249,
+        "errors": 1,
+        "consumed": 2878,
+        "last_error": "local:ConnectError",
+        "decisions": 8290,
+        "fallback": 5412,
+        "enabled": true,
+        "provider": "laya",
+        "model": "convaiinnovations/laya-multilingual",
+        "pending": 1,
+        "dialogue_pending": 0,
+        "dialogue_configured": false
+      },
+      "metrics": {
+        "tick_duration_ms": 359.9,
+        "decision_duration_ms": 298.15,
+        "active_chunks": 15,
+        "loaded_chunks": 7,
+        "visual_cached_chunks": 8,
+        "payload_bytes": 544971
+      }
+    },
+    {
+      "at": 1792316478.6785433,
+      "tick": 1404,
+      "status": "running",
+      "cognition": {
+        "completed": 249,
+        "errors": 1,
+        "consumed": 2909,
+        "last_error": "local:ConnectError",
+        "decisions": 8420,
+        "fallback": 5511,
+        "enabled": true,
+        "provider": "laya",
+        "model": "convaiinnovations/laya-multilingual",
+        "pending": 1,
+        "dialogue_pending": 0,
+        "dialogue_configured": false
+      },
+      "metrics": {
+        "tick_duration_ms": 327.92,
+        "decision_duration_ms": 275.74,
+        "active_chunks": 15,
+        "loaded_chunks": 7,
+        "visual_cached_chunks": 8,
+        "payload_bytes": 547799
+      }
+    }
+  ],
+  "notes": [
+    "Shared desktop, live simulation and shared CPU Laya server remain active.",
+    "Isolated fresh seed42 worlds, actual SQLite writes, 10 warmup ticks excluded.",
+    "Snapshot serialization measured separately; browser rendering and WebSocket delivery are not measured.",
+    "Sequential cases in same Python process; peak RSS is cumulative, not per-case independent.",
+    "Cognitive benchmark pacing caps the tick rate at 2Hz but does not reproduce the service missed-deadline scheduler.",
+    "Late pending cognitive tasks are cancelled on trial completion; a shared server may still finish their CPU inference, affecting the next case.",
+    "Reported engine tick timings exclude separately timed state serialization, WebSocket work, browser rendering and model inference wall time."
+  ],
+  "verified_live_settings": {
+    "provider": "laya",
+    "model": "convaiinnovations/laya-multilingual",
+    "revision": "1720e3e3357cfe1e281542e223f8273b0890ca34",
+    "device": "cpu",
+    "torch_threads": 4,
+    "torch_interop_threads": 1,
+    "interval_ticks": 1,
+    "ttl_ticks": 80,
+    "timeout_seconds": 45,
+    "dialogue_configured": false,
+    "software_population_cap": 30,
+    "batch_request_cap": 30
+  },
+  "local_model_inspection": {
+    "encoder": "jhu-clsp/mmBERT-base",
+    "model_type": "modernbert",
+    "layers": 22,
+    "stored_tensor_elements": 321908998,
+    "source": "Installed Laya package and pinned local model config/safetensors header, no network inference."
+  },
+  "allowed_cpus": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "benchmark_scope": {
+    "population_sizes": [
+      10,
+      20,
+      30
+    ],
+    "seed": 42,
+    "ticks_per_case": 100,
+    "total_cases": 6,
+    "live_world_preserved": true,
+    "gpu_tested": false,
+    "independent_dedicated_laya_capacity_tested": false,
+    "long_run_capacity_tested": false,
+    "mature_checkpoint_test": {
+      "initial_tick": 1221,
+      "ticks": 100,
+      "agents": 10,
+      "mode": "utility",
+      "output": "capacity-mature.json"
+    }
+  },
+  "live_world_at_end": {
+    "run_id": "67cac796-49e3-4cfb-8c69-100d31a5d58e",
+    "tick": 1983,
+    "status": "running",
+    "speed": 1.0,
+    "agents": 10
+  }
+}

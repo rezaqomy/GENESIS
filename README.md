@@ -1,6 +1,6 @@
 # Genesis
 
-A persistent artificial world with ten autonomous inhabitants. Python owns the simulation; a React/PixiJS observatory lets you watch it unfold, inspect individuals, and control time. Phase 2 adds signed procedural chunks, individual personalities, explained utility decisions, functional settlements and original pixel art. Local CPU cognition uses the Laya decision model, with persistent experience memory and a separate optional OpenAI-compatible dialogue provider.
+A persistent artificial world with ten autonomous inhabitants. Python owns the simulation; a React/PixiJS observatory lets you watch it unfold, inspect individuals, and control time. Phase 2 adds signed procedural chunks, individual personalities, explained utility decisions, functional settlements and original pixel art. Local CPU cognition uses the Laya decision model, with persistent experience memory and a separate local model for generated conversations.
 
 ## Run locally
 
@@ -34,9 +34,11 @@ make replay RUN=<run-id>
 
 Ollama remains optional: set `GENESIS_DECISION_PROVIDER=ollama` and choose `qwen2.5:0.5b` or `llama3.2:1b` with `GENESIS_LOCAL_MODEL`. `GENESIS_COGNITION=0` runs without inference.
 
-Agents remember up to 48 experiences, learn preferences from action outcomes, and use personality, emotions, weather and local conditions in decisions. Inspect **Memory** and **Decision** to see experiences and model thoughts. Emergency survival keeps deterministic priority; slow or invalid inference uses the existing utility policy. `/api/cognition` reports live inference status. Replay retains model decisions and memory without calling a model again.
+Agents retain short-term experiences, important long-term episodes, timestamped food observations and context-specific practical lessons. Actual action outcomes influence goal scores; memory retrieval uses relevance, importance and recency. The legacy 48-experience journal remains readable. See [memory research and design](docs/agent-memory-research.fa.md) and [measured behavior comparison](docs/memory-evaluation.md). Inspect **Memory** and **Decision** to see experiences and model thoughts. Emergency survival keeps deterministic priority; slow or invalid inference uses the existing utility policy. `/api/cognition` reports live inference status. Replay retains model decisions and memory without calling a model again.
 
-Set `GENESIS_DIALOGUE_URL` (including `/v1`), `GENESIS_DIALOGUE_MODEL`, and optional `GENESIS_DIALOGUE_API_KEY` when the conversation provider is available. These settings are used only for dialogue between nearby agents.
+The example configuration enables local conversations with `GENESIS_DIALOGUE_PROVIDER=ollama`, `GENESIS_DIALOGUE_URL=http://localhost:11435/v1` and `GENESIS_DIALOGUE_MODEL=llama3.2:1b`. Pull that model with `OLLAMA_HOST=127.0.0.1:11435 ollama pull llama3.2:1b` after starting the local server. `scripts/dev.sh` starts the isolated Ollama server when needed. For another compatible endpoint, set `GENESIS_DIALOGUE_PROVIDER=compatible`, its `/v1` URL, model and optional `GENESIS_DIALOGUE_API_KEY`.
+
+Nearby agents generate short English utterances from their own memories and recent exchanges. Both remember accepted messages; replies are independent of Laya goal refreshes. One dialogue job runs at a time, with a 12-tick cooldown per speaker. Leaving hearing range, stale messages and survival emergencies prevent delivery. Use **World Journal → DIALOGUE** to read conversations. Spoken claims are memories, not automatically verified recipes or map facts. See [dialogue behavior and validation (Persian)](docs/dialogue.fa.md).
 
 ## Docker
 
@@ -58,6 +60,7 @@ Open http://localhost:5173. SQLite persists in the `genesis-data` named volume. 
 - Enter an integer seed and reset to regenerate a reproducible world.
 - The world journal streams actual resolved actions and controls. Filter by action/event or agent. **Hold** freezes the displayed cursor while the simulation continues.
 - Inspector tabs show real physiology/psychology, personality, decision scores/factors/rejections, inventory/tools, companions and event history.
+- **Memory** shows bounded short/long-term memories and practical lessons. **Plans** shows multi-stage food, construction and expedition tasks, measured outcomes and verified strategies. Emergency survival can interrupt a plan; agents reserve next movement tiles and replan or yield on conflicts.
 - The settlement panel shows shared reserves, completed structures, local safety/comfort, crowding and exploration activity. Members can be clicked to select and focus them.
 - Optional atmospheric effects show deterministic day/night and weather. Expand Performance for measured tick/decision time, payload bytes, cached/active/visible chunks and FPS.
 
@@ -72,6 +75,12 @@ GET `/api/replay/{run_id}` reconstructs the recorded world and returns its hash 
 ## Engineering notes
 
 See [architecture](docs/architecture.md), [simulation rules](docs/simulation-rules.md), and [cognition integration](docs/future-ai-integration.md). Domain modules separate perception, policies, pathfinding, validation, action resolution, mutation events and persistence. Fixed ticks and stable actor/resource ordering make results independent of rendering speed. SQLite records the generated state, all accepted commands, complete mutation events, tick hashes and periodic snapshots. Full-log and snapshot replay reconstruct the same authoritative state.
+
+See [similar projects and implemented adaptations (Persian)](docs/similar-projects.fa.md) and [measured behavior comparison](docs/planning-evaluation.fa.md). Strategy learning uses verified fixed recipes; it does not generate new executable skills.
+
+The [extended game AI research (Persian)](docs/game-ai-deep-research.fa.md) compares life simulations, social games, traditional NPC architectures and research agents against the current code. It includes a [source catalog with reading limits](docs/research/game-ai-sources.fa.md) and a [proposed development and evaluation roadmap](docs/agent-development-roadmap.fa.md). These are research proposals, not additional implemented features. The existing 240-tick behavior comparison covers one simulated day.
+
+The [project audit (Persian)](docs/project-audit.fa.md) records the original scheduling, persistence, cognition and UI findings. The [implemented fixes and regression coverage](docs/audit-fixes.fa.md) include independent tick scheduling, transactional state rollback, separate dialogue jobs, energy-aware actions, reconstruction of destroyed buildings and journal recovery with a stable Hold view. Run `.venv/bin/python scripts/audit_project.py` to probe the current behavior without opening the application's database.
 
 The 60 local assets were created through Figma AI and processed into PNG terrain, nature/building sprites, items and four directional character sheets. Action poses were assembled from generated walk bases and tools. See [asset manifest](docs/asset-generation-manifest.md) for source batches, exact prompts, filenames and replacements. `python3 scripts/build_assets.py` rebuilds assets from retained sources (requires Pillow). Nearest-neighbor rendering preserves pixels. Missing textures use an explicit procedural fallback, counted in Performance; no external service is needed at runtime.
 

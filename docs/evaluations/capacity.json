@@ -1,0 +1,226 @@
+[
+  {
+    "agents_requested": 10,
+    "agents_actual": 10,
+    "alive_final": 10,
+    "mode": "utility_unpaced",
+    "ticks": 100,
+    "warmup_ticks_excluded": 10,
+    "wall_seconds": 21.08,
+    "process_cpu_seconds": 17.86,
+    "tick_ms": {
+      "p50": 202.06,
+      "p95": 277.66,
+      "p100": 352.07
+    },
+    "decision_ms": {
+      "p50": 139.27,
+      "p95": 201.38,
+      "p100": 272.51
+    },
+    "state_serialization_ms": {
+      "p50": 10.48,
+      "p95": 26.52,
+      "p100": 92.1
+    },
+    "final_state_bytes": 237990,
+    "database_bytes": 29951520,
+    "process_peak_rss_mib_cumulative": 60.5
+  },
+  {
+    "agents_requested": 20,
+    "agents_actual": 20,
+    "alive_final": 20,
+    "mode": "utility_unpaced",
+    "ticks": 100,
+    "warmup_ticks_excluded": 10,
+    "wall_seconds": 47.29,
+    "process_cpu_seconds": 38.82,
+    "tick_ms": {
+      "p50": 434.94,
+      "p95": 715.54,
+      "p100": 802.34
+    },
+    "decision_ms": {
+      "p50": 309.5,
+      "p95": 521.04,
+      "p100": 588.84
+    },
+    "state_serialization_ms": {
+      "p50": 23.35,
+      "p95": 70.51,
+      "p100": 112.29
+    },
+    "final_state_bytes": 467506,
+    "database_bytes": 54657616,
+    "process_peak_rss_mib_cumulative": 71.0
+  },
+  {
+    "agents_requested": 30,
+    "agents_actual": 30,
+    "alive_final": 30,
+    "mode": "utility_unpaced",
+    "ticks": 100,
+    "warmup_ticks_excluded": 10,
+    "wall_seconds": 65.43,
+    "process_cpu_seconds": 58.36,
+    "tick_ms": {
+      "p50": 596.45,
+      "p95": 781.54,
+      "p100": 1094.45
+    },
+    "decision_ms": {
+      "p50": 437.05,
+      "p95": 593.79,
+      "p100": 859.18
+    },
+    "state_serialization_ms": {
+      "p50": 30.85,
+      "p95": 89.04,
+      "p100": 176.69
+    },
+    "final_state_bytes": 671768,
+    "database_bytes": 77030496,
+    "process_peak_rss_mib_cumulative": 84.1
+  },
+  {
+    "agents_requested": 10,
+    "agents_actual": 10,
+    "alive_final": 10,
+    "mode": "laya_shared_server_1x",
+    "ticks": 100,
+    "warmup_ticks_excluded": 10,
+    "wall_seconds": 50.16,
+    "process_cpu_seconds": 20.03,
+    "tick_ms": {
+      "p50": 222.33,
+      "p95": 304.5,
+      "p100": 400.6
+    },
+    "decision_ms": {
+      "p50": 155.57,
+      "p95": 228.44,
+      "p100": 337.69
+    },
+    "state_serialization_ms": {
+      "p50": 11.05,
+      "p95": 20.55,
+      "p100": 78.32
+    },
+    "final_state_bytes": 232458,
+    "database_bytes": 30267104,
+    "process_peak_rss_mib_cumulative": 84.1,
+    "cognition": {
+      "completed": 10,
+      "errors": 0,
+      "consumed": 3,
+      "last_error": null,
+      "decisions": 1000,
+      "fallback": 997,
+      "enabled": true,
+      "provider": "laya",
+      "model": "convaiinnovations/laya-multilingual",
+      "pending": 1,
+      "dialogue_pending": 0,
+      "dialogue_configured": false
+    },
+    "cached_observation_age_ticks": {
+      "p50": 77,
+      "p95": 98,
+      "p100": 100
+    },
+    "laya_applied_fraction": 0.003
+  },
+  {
+    "agents_requested": 20,
+    "agents_actual": 20,
+    "alive_final": 20,
+    "mode": "laya_shared_server_1x",
+    "ticks": 100,
+    "warmup_ticks_excluded": 10,
+    "wall_seconds": 56.24,
+    "process_cpu_seconds": 46.63,
+    "tick_ms": {
+      "p50": 476.51,
+      "p95": 768.17,
+      "p100": 919.4
+    },
+    "decision_ms": {
+      "p50": 353.12,
+      "p95": 540.22,
+      "p100": 773.65
+    },
+    "state_serialization_ms": {
+      "p50": 25.83,
+      "p95": 87.08,
+      "p100": 188.83
+    },
+    "final_state_bytes": 467506,
+    "database_bytes": 54682288,
+    "process_peak_rss_mib_cumulative": 84.1,
+    "cognition": {
+      "completed": 0,
+      "errors": 1,
+      "consumed": 0,
+      "last_error": "local:ReadTimeout",
+      "decisions": 2000,
+      "fallback": 2000,
+      "enabled": true,
+      "provider": "laya",
+      "model": "convaiinnovations/laya-multilingual",
+      "pending": 0,
+      "dialogue_pending": 0,
+      "dialogue_configured": false
+    },
+    "cached_observation_age_ticks": null,
+    "laya_applied_fraction": 0.0
+  },
+  {
+    "agents_requested": 30,
+    "agents_actual": 30,
+    "alive_final": 30,
+    "mode": "laya_shared_server_1x",
+    "ticks": 100,
+    "warmup_ticks_excluded": 10,
+    "wall_seconds": 65.68,
+    "process_cpu_seconds": 64.07,
+    "tick_ms": {
+      "p50": 619.72,
+      "p95": 766.19,
+      "p100": 876.3
+    },
+    "decision_ms": {
+      "p50": 473.17,
+      "p95": 572.5,
+      "p100": 603.65
+    },
+    "state_serialization_ms": {
+      "p50": 30.31,
+      "p95": 91.92,
+      "p100": 129.03
+    },
+    "final_state_bytes": 681283,
+    "database_bytes": 78227272,
+    "process_peak_rss_mib_cumulative": 97.9,
+    "cognition": {
+      "completed": 30,
+      "errors": 0,
+      "consumed": 293,
+      "last_error": null,
+      "decisions": 3000,
+      "fallback": 2707,
+      "enabled": true,
+      "provider": "laya",
+      "model": "convaiinnovations/laya-multilingual",
+      "pending": 1,
+      "dialogue_pending": 0,
+      "dialogue_configured": false
+    },
+    "cached_observation_age_ticks": {
+      "p50": 80,
+      "p95": 98,
+      "p100": 100
+    },
+    "laya_applied_fraction": 0.098
+  }
+]

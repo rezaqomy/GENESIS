@@ -3,9 +3,24 @@
 import math
 
 from app.simulation.chunks.generator import SIZE, sample
-from app.simulation.models.domain import Action, AgentIntent, CandidateGoal, Position
+from app.simulation.cognition.tiers import (
+    avoided_tiles,
+    food_destinations,
+    goal_adjustment,
+    retrieve,
+)
+from app.simulation.models.domain import (
+    RESOURCE_KINDS,
+    Action,
+    AgentIntent,
+    CandidateGoal,
+    Position,
+)
 from app.simulation.observation.builder import Observation
 from app.simulation.pathfinding.astar import astar, local_waypoint, region_route
+from app.simulation.planning.tasks import select_task, skill_bonus
+
+SURVIVAL_GOALS = ("eat", "find_food", "take_shared_food", "make_food_space")
 
 DEFAULT_WEIGHTS = {
     "need": 0.55,
@@ -28,6 +43,7 @@ class UtilityPolicy:
         walkable = {
             (tile.position.x, tile.position.y) for tile in o.tiles if tile.walkable
         } - occupied
+        walkable -= avoided_tiles(a, o.tick)
         walkable.add((a.position.x, a.position.y))
         hunger, tired = a.hunger / 100, 1 - a.energy / 100
         home_distance = a.position.distance(a.home)
@@ -35,15 +51,43 @@ class UtilityPolicy:
         full = a.inventory.total / a.inventory.capacity
         food = [r for r in o.resources if r.kind == "food" and r.quantity > 0]
         scarcity = 1 - min(1, sum(r.quantity for r in food) / 32)
+        # Repeated accepted moves can still form a loop around an unreachable memory.
+        recent = a.recent_positions[-8:]
+        stalled_foraging = (
+            a.decision.selected_goal == "find_food"
+            and len(recent) == 8
+            and len({(p.x, p.y) for p in recent}) <= 3
+        )
+        food_memory_blocked_until = max(
+            a.decision.cooldowns.get("remembered_food", 0), o.tick + 48 if stalled_foraging else 0
+        )
+        # A currently visible empty patch overrides an older positive memory.
+        depleted = {
+            (r.position.x, r.position.y)
+            for r in o.resources
+            if r.kind == "food" and r.quantity == 0
+        }
         remembered_food = [
-            Position(x=int(key.split(":")[1]), y=int(key.split(":")[2]))
-            for key, quantity in a.food_memory.items()
-            if quantity > 0
+            p
+            for p in food_destinations(a, o.tick)
+            if (p.x, p.y) not in depleted
+            and a.position.distance(p) > o.vision_radius
+            and o.tick >= food_memory_blocked_until
         ]
         candidates: list[CandidateGoal] = []
         plans: dict[str, tuple[Action, dict]] = {}
 
         def add(goal, factors, action=Action.IDLE, rejection=None, **kwargs):
+            minimum_energy = {
+                Action.MOVE: 2,
+                Action.GATHER: 3,
+                Action.BUILD: 4,
+                Action.CRAFT: 3,
+                Action.EXPERIMENT: 3,
+                Action.EXPERIMENT_TOOL: 3,
+            }
+            if a.energy < minimum_energy.get(action, 0):
+                rejection = rejection or "Recover energy before this action"
             trait_keys = set(type(t).model_fields)
             for key, value in list(factors.items()):
                 group = (
@@ -72,7 +116,8 @@ class UtilityPolicy:
                     else "reward"
                 )
                 factors[key] = value * self.weights[group] / DEFAULT_WEIGHTS[group]
-            factors["learned_preference"] = a.habits.get(goal, 0) * 0.08
+            factors["memory_outcome"] = goal_adjustment(a, goal, o.tick, o.environment)
+            factors["verified_skill"] = skill_bonus(a, goal, o.tick, o.environment)
             score = max(0.0, min(1.0, sum(factors.values())))
             if a.decision.cooldowns.get(goal, 0) > o.tick:
                 rejection = rejection or "Recovery cooldown"
@@ -125,6 +170,20 @@ class UtilityPolicy:
             Action.REST,
             rejection="Energy already high" if a.energy > 86 else None,
         )
+        free = a.inventory.capacity - a.inventory.total
+        needed = max(0, min(3, a.inventory.capacity // 4) - a.inventory.food - free)
+        disposable = [k for k in RESOURCE_KINDS if k != "food" and getattr(a.inventory, k)]
+        if needed and a.inventory.food < 2 and disposable:
+            item = max(disposable, key=lambda k: (getattr(a.inventory, k), k))
+            add(
+                "make_food_space",
+                {"food_reserve": 0.78, "hunger": hunger * 0.15},
+                Action.DISCARD,
+                item=item,
+                amount=min(needed, getattr(a.inventory, item)),
+            )
+        else:
+            add("make_food_space", {}, rejection="Enough carrying room for food")
         paths = []
         for r in food:
             x, y = r.position.x, r.position.y
@@ -151,8 +210,63 @@ class UtilityPolicy:
                 ),
             )
         elif not paths and a.inventory.food < 2 and remembered_food:
-            remembered = min(remembered_food, key=lambda v: (a.position.distance(v), v.y, v.x))
+            remembered = remembered_food[0]
             approach("find_food", remembered, food_factors)
+        elif not paths and a.inventory.food < 3 and full < 1:
+            # Search beyond the depleted area using only locally reachable terrain.
+            # Remember the heading across ticks; no hidden resource coordinates are used.
+            destination = (
+                a.decision.target
+                if a.decision.selected_goal == "find_food" and not stalled_foraging
+                else None
+            )
+
+            def search_path(target):
+                if target is None:
+                    return None
+                search_tiles = walkable - {(p.x, p.y) for p in a.recent_positions[-6:]}
+                search_tiles.add((a.position.x, a.position.y))
+                return local_waypoint(
+                    a.position, target, search_tiles, o.path_budget
+                ) or local_waypoint(a.position, target, walkable, o.path_budget)
+
+            path = (
+                search_path(destination)
+                if destination and a.position.distance(destination) >= 2 and a.decision.failures < 2
+                else None
+            )
+            if not path:
+                # Select a reachable frontier, including narrow or small vision areas.
+                origin = (a.position.x, a.position.y)
+                reachable, pending = {origin}, [origin]
+                while pending:
+                    x, y = pending.pop()
+                    for neighbor in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                        if neighbor in walkable and neighbor not in reachable:
+                            reachable.add(neighbor)
+                            pending.append(neighbor)
+                frontier = [Position(x=x, y=y) for x, y in reachable if (x, y) != origin]
+
+                def freshness(p):
+                    visits = sum(
+                        max(0, o.vision_radius - p.distance(v)) for v in a.recent_positions
+                    )
+                    return (
+                        -visits,
+                        a.position.distance(p),
+                        sample(o.seed, p.x, p.y, a.id + "food-search"),
+                    )
+
+                destination = max(frontier, key=freshness) if frontier else None
+                path = search_path(destination)
+            add(
+                "find_food",
+                food_factors,
+                Action.MOVE,
+                target=path[0] if path else None,
+                destination=destination,
+                rejection=None if path else "No reachable food-search frontier",
+            )
         else:
             add(
                 "find_food",
@@ -262,29 +376,37 @@ class UtilityPolicy:
             if valid
             else CandidateGoal(goal="observe", utility=0)
         )
-        if a.hunger >= 85:
-            survival = [c for c in valid if c.goal in ("eat", "find_food", "take_shared_food")]
+        if a.energy < 12 and not (a.hunger >= 85 and a.inventory.food):
+            chosen = next((c for c in valid if c.goal == "rest"), chosen)
+        elif a.hunger >= 65:
+            survival = [c for c in valid if c.goal in SURVIVAL_GOALS]
             if survival:
                 chosen = max(survival, key=lambda c: (c.utility, c.goal))
         previous = next((c for c in valid if c.goal == a.decision.selected_goal), None)
-        urgent = (a.hunger >= 85 and chosen.goal in ("eat", "find_food", "take_shared_food")) or (
+        urgent = (a.hunger >= 65 and chosen.goal in SURVIVAL_GOALS) or (
             a.energy < 12 and chosen.goal == "rest"
         )
         if previous and not urgent and a.decision.failures < 3:
             if o.tick < a.decision.commitment_until or chosen.utility < previous.utility + 0.09:
                 chosen = previous
         # Model preferences never override emergency survival or unavailable goals.
-        if preferred_goal and not urgent and a.hunger < 85 and a.energy >= 12:
+        if preferred_goal and not urgent and a.hunger < 65 and a.energy >= 12:
             preferred = next((c for c in valid if c.goal == preferred_goal), None)
-            committed = (
-                previous is not None
-                and o.tick < a.decision.commitment_until
-                and a.decision.failures < 3
-            )
-            if preferred and (not committed or preferred.goal == previous.goal):
+            if preferred:
                 chosen = preferred
+        task, task_goal = select_task(o, chosen.goal, valid, plans)
+        if (
+            task_goal
+            and not urgent
+            and a.hunger < 65
+            and a.energy >= 12
+            and chosen.goal != preferred_goal
+        ):
+            chosen = next(c for c in valid if c.goal == task_goal)
         action, kwargs = plans.get(chosen.goal, (Action.IDLE, {}))
         d = a.decision.model_copy(deep=True)
+        if stalled_foraging:
+            d.cooldowns["remembered_food"] = food_memory_blocked_until
         switching = chosen.goal != d.selected_goal
         if switching:
             d.selected_tick = o.tick
@@ -297,12 +419,21 @@ class UtilityPolicy:
         d.plan = [f"{action.value.lower()} toward goal"]
         if d.target:
             d.plan += [f"Region {key}" for key in region_route(a.position, d.target, budget=8)]
+        if task:
+            d.plan.insert(0, f"Task: {task.kind}; stage: {task.stage}; deadline: {task.deadline}")
         d.progress = (
             round(max(0, min(1, 1 - a.position.distance(d.target) / max(1, d.origin_distance))), 3)
             if d.target
             else 0
         )
-        return AgentIntent(actor_id=a.id, action=action, decision=d, **kwargs)
+        return AgentIntent(
+            actor_id=a.id,
+            action=action,
+            decision=d,
+            recalled_ids=[m.id for m in retrieve(a, o.tick, o.environment, chosen.goal)],
+            task=task,
+            **kwargs,
+        )
 
     def settlement_goals(self, o, add, approach, walkable):
         from app.simulation.policies.economy import settlement_goals
