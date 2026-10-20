@@ -11,6 +11,8 @@ def validate_intent(
     agent = world.agents.get(intent.actor_id)
     if agent is None or not agent.alive:
         return "Actor is absent or dead"
+    if intent.idea is not None and (intent.utterance is None or intent.action != Action.SOCIALIZE):
+        return "Sharing an idea requires a real local conversation"
     if intent.utterance is not None:
         peer = world.agents.get(intent.peer_id or "")
         if (
@@ -21,6 +23,27 @@ def validate_intent(
             or agent.position.distance(peer.position) > 1
         ):
             return "Dialogue requires a living adjacent listener"
+    from app.simulation.actions.ecosystem import ECO_ACTIONS
+    from app.simulation.actions.ecosystem import validate as validate_ecosystem
+
+    if intent.action in ECO_ACTIONS:
+        return validate_ecosystem(world, intent, access)
+    from app.simulation.actions.workshop import WORKSHOP_ACTIONS
+
+    if intent.action in WORKSHOP_ACTIONS:
+        from app.simulation.actions.workshop import validate as validate_workshop
+
+        return validate_workshop(world, intent, access)
+    from app.simulation.actions.earthwork import EARTHWORK_ACTIONS
+
+    if intent.action in EARTHWORK_ACTIONS:
+        from app.simulation.actions.earthwork import validate as validate_earthwork
+
+        return validate_earthwork(world, intent, access)
+    from app.simulation.community import COMMUNITY_ACTIONS, validate
+
+    if intent.action in COMMUNITY_ACTIONS:
+        return validate(world, intent, access)
     if intent.action == Action.MOVE:
         target = intent.target
         if target is None or agent.position.distance(target) != 1:
@@ -62,7 +85,11 @@ def validate_intent(
             for a in world.agents.values()
         ):
             return "No companion within one tile"
-    elif intent.action == Action.EAT and agent.inventory.food <= 0:
+    elif (
+        intent.action == Action.EAT
+        and agent.inventory.food <= 0
+        and agent.inventory.products.get("cooked_food", 0) <= 0
+    ):
         return "No food in inventory"
     if intent.action in (
         Action.STORE,
@@ -89,6 +116,27 @@ def resolve_intent(
     agent = world.agents[intent.actor_id]
     agent.current_action = intent.action
     agent.destination = intent.destination
+    from app.simulation.actions.ecosystem import ECO_ACTIONS
+    from app.simulation.actions.ecosystem import resolve as resolve_ecosystem
+
+    if intent.action in ECO_ACTIONS:
+        return True, resolve_ecosystem(world, intent, access)
+    from app.simulation.actions.workshop import WORKSHOP_ACTIONS
+
+    if intent.action in WORKSHOP_ACTIONS:
+        from app.simulation.actions.workshop import resolve as resolve_workshop
+
+        return True, resolve_workshop(world, intent, access)
+    from app.simulation.actions.earthwork import EARTHWORK_ACTIONS
+
+    if intent.action in EARTHWORK_ACTIONS:
+        from app.simulation.actions.earthwork import resolve as resolve_earthwork
+
+        return True, resolve_earthwork(world, intent, access)
+    from app.simulation.community import COMMUNITY_ACTIONS, resolve
+
+    if intent.action in COMMUNITY_ACTIONS:
+        return True, resolve(world, intent, access)
     if intent.action in (
         Action.STORE,
         Action.WITHDRAW,
@@ -153,10 +201,25 @@ def resolve_intent(
                 f"{agent.name} abandoned {intent.amount} {intent.item} to make room for provisions"
             )
         case Action.EAT:
-            agent.inventory.food -= 1
-            agent.hunger = max(0, agent.hunger - 35)
-            message = f"{agent.name} ate berries"
+            cooked = agent.inventory.products.get("cooked_food", 0) > 0
+            if cooked:
+                from app.simulation.engineering.assemblies import change
+
+                change(agent.inventory, "cooked_food", -1)
+            else:
+                agent.inventory.food -= 1
+            agent.hunger = max(0, agent.hunger - (50 if cooked else 35))
+            message = f"{agent.name} ate {'a cooked meal' if cooked else 'berries'}"
         case Action.SOCIALIZE:
+            if intent.idea is not None:
+                from app.simulation.engineering.assemblies import design_id, knowledge
+
+                # A spoken proposal grants no performance knowledge or fabricated object.
+                for person in (agent, world.agents.get(intent.peer_id or "")):
+                    if person is not None:
+                        k = knowledge(person)
+                        ideas = [d for d in k.proposals if design_id(d) != design_id(intent.idea)]
+                        k.proposals = [*ideas, intent.idea.model_copy(deep=True)][-4:]
             agent.psychology.loneliness = max(0, agent.psychology.loneliness - 0.12)
             agent.psychology.social_satisfaction = min(
                 1, agent.psychology.social_satisfaction + 0.12

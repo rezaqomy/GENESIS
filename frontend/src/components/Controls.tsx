@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { control } from '../api/client'
 import { useWorld } from '../stores/world'
+import { FieldIllustration } from './FieldIllustration'
 export function Controls() {
   const { snapshot, pending, connection } = useWorld()
   const [seed, setSeed] = useState('42')
@@ -12,7 +13,7 @@ export function Controls() {
   const validSeed = /^\d+$/.test(seed) && Number(seed) <= 4294967295
   return <aside className="controls panel">
     <div className="brand"><div className="brand-icon">✳</div><div><h1>GENESIS</h1><span>A LIVING ARTIFICIAL WORLD</span></div></div>
-    <div className="experiment"><span className="eyebrow">EXPERIMENT 001</span><p>Small lives.<br/>Emergent possibilities.</p><span className="phase-label">PHASE 2 <i /> UTILITY-DRIVEN LIVES</span></div>
+    <div className="experiment"><FieldIllustration compact/><span className="eyebrow">A SMALL BEGINNING</span><p>Life finds a way.</p><span className="phase-label">DISCOVER <i /> CREATE <i /> COEXIST</span></div>
     <div className="section-line"><span className="eyebrow">WORLD STATE</span><span className={`status-pill ${running ? 'active' : ''}`}>{running ? 'RUNNING' : 'PAUSED'}</span></div>
     <div className="tick"><span>{String(world?.tick ?? 0).padStart(5,'0')}</span><small>SIMULATION TICK</small></div>
     <div className="stats"><div><span className="stat-icon">♙</span><b>{alive}<small> / {world?.config.agent_count ?? 10}</small></b><label>Living agents</label></div><div><span className="stat-icon berry">✿</span><b>{food}</b><label>Food reserves</label></div></div>
@@ -27,6 +28,6 @@ export function Controls() {
     <div className="seed-input"><span>⌘</span><input id="seed" aria-label="World seed" inputMode="numeric" value={seed} onChange={e => setSeed(e.target.value)} /></div>
     <p className="helper">Current seed: {world?.config.seed ?? '—'}. Same seed, same beginning.</p>
     <button className="secondary reset" disabled={disabled || !validSeed} onClick={() => void control('reset',{seed:Number(seed)})}>↺ Reset world</button>
-    <div className="control-footer"><span className={`status-dot ${connection !== 'live' ? 'offline' : ''}`} /><span>{connection === 'live' ? 'Connected to simulation' : connection === 'connecting' ? 'Connecting…' : 'Reconnecting…'}</span><small>AUTHORITATIVE PYTHON ENGINE</small></div>
+    <div className="control-footer"><span className={`status-dot ${connection !== 'live' ? 'offline' : ''}`} /><span>{connection === 'live' ? 'Connected to simulation' : connection === 'connecting' ? 'Connecting…' : 'Reconnecting…'}</span><small>EVERY CHOICE LEAVES A TRACE</small></div>
   </aside>
 }

@@ -43,7 +43,7 @@ def select_task(o, chosen, valid, plans):
         kind = START_GOALS.get(chosen)
         if kind is None or (recent and o.tick - recent.ended_tick < 12):
             return None, None
-        if kind == "forage" and a.inventory.food >= 2 and a.hunger < 55:
+        if kind == "forage" and a.inventory.food >= 1 and a.hunger < 55:
             return None, None
         if chosen == "eat" and a.hunger < 55:
             return None, None
@@ -71,6 +71,21 @@ def select_task(o, chosen, valid, plans):
         "experiment_tool",
         "experiment_shelter",
         "craft_tools",
+        "experiment_assembly",
+        "fabricate_assembly",
+        "supply_assembly",
+        "operate_catch",
+        "operate_water",
+        "operate_cultivate",
+        "heat_material",
+        "barter",
+        "salvage_assembly",
+        "mine_building_material",
+        "prepare_farmland",
+        "help_neighbor",
+        "organize_project",
+        "maintain_community",
+        "feed_community",
     ):
         return task, None  # Provisions can interrupt a project without changing its recipe.
     available = {c.goal: c for c in valid}
@@ -261,7 +276,7 @@ def update_task(world, actor, intent, accepted, before, tick):
         if intent.action == Action.BUILD and intent.target == task.target:
             task.work_units += 1
             task.last_progress_tick = tick
-    if task.kind == "forage" and actor.inventory.food >= 2 and actor.hunger < 65:
+    if task.kind == "forage" and actor.inventory.food >= 1 and actor.hunger < 55:
         return finish_task(
             actor, "succeeded", "Food reserve replenished without urgent hunger", tick
         )

@@ -1,0 +1,124 @@
+[
+  {
+    "seed": 42,
+    "ticks": 240,
+    "policy": "UtilityPolicy; no model calls or seeded recipes",
+    "alive": 10,
+    "actions": {
+      "MOVE": 1574,
+      "EXPERIMENT": 55,
+      "WITHDRAW": 21,
+      "EXPERIMENT_TOOL": 69,
+      "BUILD": 21,
+      "PROPOSE_PROJECT": 5,
+      "EXPERIMENT_ASSEMBLY": 54,
+      "GATHER": 142,
+      "REST": 385,
+      "EAT": 13,
+      "HEAT": 2,
+      "STORE": 27,
+      "ASSEMBLE": 2,
+      "REPAIR": 6,
+      "REFUEL": 4,
+      "OFFER_TRADE": 1,
+      "MINE": 1,
+      "GIVE": 1,
+      "IDLE": 1
+    },
+    "trials": 18,
+    "devices": [
+      {
+        "name": "Nova's water experiment",
+        "measured": {
+          "catch": 0.0,
+          "water": 0.425,
+          "heat": 0.8,
+          "cultivate": 0.0,
+          "shelter": 0.0,
+          "storage": 0.5
+        },
+        "food_produced": 0
+      },
+      {
+        "name": "Nova's water experiment",
+        "measured": {
+          "catch": 0.0,
+          "water": 0.425,
+          "heat": 0.8,
+          "cultivate": 0.0,
+          "shelter": 0.0,
+          "storage": 0.5
+        },
+        "food_produced": 0
+      }
+    ],
+    "products": {
+      "Ada": {
+        "cooked_food": 0
+      },
+      "Finn": {
+        "cooked_food": 1
+      }
+    },
+    "examples": {
+      "EXPERIMENT_ASSEMBLY": "Finn tested Finn's water experiment: Loose joints separated under load; change the connection.; Combustible walls lost heat and charred during the burn test.; The enclosure obstructed the mesh opening.; Measured effects: catch=0.02, water=0.00, heat=0.00, cultivate=0.00, shelter=0.00, storage=0.00",
+      "HEAT": "Finn heated food: produced cooked_food",
+      "ASSEMBLE": "Ada fabricated Nova's water experiment at (6, -2)"
+    },
+    "replay_matches": true
+  },
+  {
+    "seed": 7,
+    "ticks": 240,
+    "policy": "UtilityPolicy; no model calls or seeded recipes",
+    "alive": 10,
+    "actions": {
+      "MOVE": 1521,
+      "EXPERIMENT": 24,
+      "WITHDRAW": 14,
+      "BUILD": 4,
+      "EXPERIMENT_TOOL": 126,
+      "EXPERIMENT_ASSEMBLY": 81,
+      "PROPOSE_PROJECT": 1,
+      "REST": 423,
+      "GATHER": 159,
+      "EAT": 15,
+      "STORE": 12,
+      "ASSEMBLE": 1,
+      "OPERATE": 3,
+      "REFUEL": 3,
+      "HEAT": 2,
+      "OFFER_TRADE": 1
+    },
+    "trials": 27,
+    "devices": [
+      {
+        "name": "Jude's catch experiment",
+        "measured": {
+          "catch": 0.468,
+          "water": 0.0,
+          "heat": 0.0,
+          "cultivate": 0.119,
+          "shelter": 0.0,
+          "storage": 0.0
+        },
+        "food_produced": 3
+      }
+    ],
+    "products": {
+      "Ada": {
+        "cooked_food": 1
+      },
+      "Mira": {
+        "cooked_food": 1
+      }
+    },
+    "examples": {
+      "EXPERIMENT_ASSEMBLY": "Iris tested Iris's water experiment: Loose joints separated under load; change the connection.; Measured effects: catch=0.00, water=0.00, heat=0.00, cultivate=0.00, shelter=0.02, storage=0.02",
+      "ASSEMBLE": "Jude fabricated Jude's catch experiment at (-1, 11)",
+      "OPERATE": "Nova caught food with Jude's catch experiment",
+      "HEAT": "Ada heated food: produced cooked_food"
+    },
+    "replay_matches": true
+  }
+]

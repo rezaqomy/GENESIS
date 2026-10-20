@@ -163,8 +163,10 @@ def action_snapshot(actor):
     return {
         "hunger": actor.hunger,
         "food": actor.inventory.food,
+        "products": dict(actor.inventory.products),
         "materials": actor.inventory.model_dump(),
         "energy": actor.energy,
+        "assembly_trials": len(actor.workshop.trials) if actor.workshop else 0,
         "housing_trials": len(actor.housing.trials) if actor.housing else 0,
         "loneliness": actor.psychology.loneliness,
         "inventory": actor.inventory.total,
@@ -193,6 +195,26 @@ def action_outcome(actor, intent, accepted, before):
             intent.destination
         )
         return max(-0.05, min(0.05, progress * 0.05))
+    if intent.action == Action.EXPERIMENT_ASSEMBLY:
+        if actor.workshop and len(actor.workshop.trials) > before.get("assembly_trials", 0):
+            return 0.5 if max(actor.workshop.trials[-1].measured.values()) >= 0.3 else -0.3
+        return 0.05
+    if intent.action == Action.HEAT:
+        improved = any(
+            v > before.get("products", {}).get(k, 0) for k, v in actor.inventory.products.items()
+        )
+        improved |= actor.inventory.fuel > before["materials"]["fuel"]
+        return 0.5 if improved else -0.3
+    if intent.action == Action.OPERATE:
+        return (
+            0.5
+            if (
+                actor.inventory.total > before["inventory"] or actor.inventory.food > before["food"]
+            )
+            else 0.0
+        )
+    if intent.action in (Action.ASSEMBLE, Action.ACCEPT_TRADE):
+        return 0.5
     if intent.action in (Action.BUILD, Action.CRAFT, Action.REFUEL):
         return 0.5
     if intent.action == Action.EXPERIMENT:

@@ -126,6 +126,11 @@ def create_app(database: str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return {"run_id": run_id, "state": state, "state_hash": state_hash(state)}
 
+    @app.get("/api/history")
+    async def history(run_id: str | None = None):
+        svc = service()
+        return svc.store.history(run_id or svc.engine.run_id)
+
     @app.get("/api/journal", response_model=EventsResponse)
     async def journal(
         after: int = Query(default=0, ge=0),

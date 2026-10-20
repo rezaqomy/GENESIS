@@ -11,6 +11,7 @@ from app.simulation.events.reducer import (
     agent_state,
     authoritative_state,
     building_state,
+    settlement_state,
     state_hash,
 )
 from app.simulation.models.domain import Action, AgentIntent, WorldConfig
@@ -142,6 +143,7 @@ class Engine:
         before_resources = {k: r.quantity for k, r in world.resources.items()}
         before_modifications = dict(world.resource_modifications)
         before_explored = list(world.explored_chunks)
+        before_ecosystem = world.ecosystem.model_dump(mode="json") if world.ecosystem else None
         before_buildings = {key: b.model_dump(mode="json") for key, b in world.buildings.items()}
         before_terrain = {
             key: t.model_dump(mode="json") for key, t in world.terrain_modifications.items()
@@ -192,6 +194,10 @@ class Engine:
                 actor.task = intent.task.model_copy(deep=True)
             accepted, message = resolve_intent(world, intent, self.access)
             actor = world.agents.get(intent.actor_id)
+            if world.config.infinite:
+                from app.simulation.community import record_work
+
+                record_work(world, actor, intent, accepted)
             if actor and actor.alive and intent.decision is not None:
                 previous_goal = actor.decision.selected_goal
                 actor.decision = intent.decision.model_copy(deep=True)
@@ -292,6 +298,24 @@ class Engine:
             )
         if world.config.infinite:
             resolve_survival(world)
+            from app.simulation.ecology.environment import advance_ecology, release_dead
+            from app.simulation.settlements.environment import conditions
+
+            for event_type, payload in [
+                *advance_ecology(
+                    world, self.access, next_tick, conditions(world.config.seed, next_tick)
+                ),
+                *release_dead(world, next_tick),
+            ]:
+                events.append(self.event(event_type, payload, tick=next_tick))
+            if before_ecosystem != world.ecosystem.model_dump(mode="json"):
+                events.append(
+                    self.event(
+                        "ECOSYSTEM_UPDATED",
+                        {"ecosystem": world.ecosystem.model_dump(mode="json")},
+                        tick=next_tick,
+                    )
+                )
         interval = world.config.regeneration_ticks
         if not world.config.infinite and interval:
             for resource in world.resources.values():
@@ -307,11 +331,15 @@ class Engine:
             ):
                 events.append(self.event(event_type, payload, tick=next_tick))
             settlement_tick(world, self.access)
+            from app.simulation.community import update_projects
+
+            for event_type, payload in update_projects(world, next_tick):
+                events.append(self.event(event_type, payload, tick=next_tick))
             for s in world.settlements.values():
                 events.append(
                     self.event(
                         "SETTLEMENT_UPDATED",
-                        {"settlement": s.model_dump(mode="json")},
+                        {"settlement": settlement_state(s)},
                         tick=next_tick,
                     )
                 )
@@ -367,13 +395,17 @@ class Engine:
                 )
             )
             if before_alive[agent.id] and not agent.alive:
+                cause = (
+                    agent.combat.death_cause
+                    if agent.combat and agent.combat.death_cause
+                    else "starvation"
+                    if agent.hunger >= 100
+                    else "exposure"
+                )
                 events.append(
                     self.event(
                         "AGENT_DIED",
-                        {
-                            "message": f"{agent.name} died "
-                            f"({'starvation' if agent.hunger >= 100 else 'exposure'})"
-                        },
+                        {"message": f"{agent.name} died ({cause})"},
                         agent.id,
                         next_tick,
                     )

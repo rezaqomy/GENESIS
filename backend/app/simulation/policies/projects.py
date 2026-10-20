@@ -10,6 +10,14 @@ def propose_project(o):
         return None
     center = Position.model_validate(s["center"])
     buildings = o.buildings
+    board = s.get("community") or {}
+    active = next((p for p in board.get("projects", []) if p["status"] == "active"), None)
+    if active:
+        target = Position.model_validate(active["target"])
+        pending = next((b for b in buildings if b["position"] == active["target"]), None)
+        # The notice describes a site, but never reveals terrain outside personal sight.
+        if any(tile.position == target for tile in o.tiles):
+            return active["kind"], target, pending
     counts = {
         kind: sum(b["kind"] == kind and building_usable(b) for b in buildings)
         for kind in (
@@ -37,7 +45,16 @@ def propose_project(o):
         "stone_wall": (1 - p.sense_of_safety) * 0.35 + t.ambition * 0.15,
         "bridge": t.exploration_drive * 0.35 + t.independence * 0.2,
     }
+    # Establish production and its infrastructure before decorative expansion.
+    if counts["farm"] == 0 and s["food_reserves"] < 12:
+        needs["farm"] += 0.6
+    if counts["storage"] == 0:
+        needs["storage"] += 0.2
+    for kind in ("watchtower", "road", "wooden_wall", "stone_wall", "bridge"):
+        if not counts["farm"]:
+            needs[kind] *= 0.25
     occupied = {(b["position"]["x"], b["position"]["y"]) for b in buildings}
+    occupied |= {(c["position"]["x"], c["position"]["y"]) for c in o.crops}
     people = {(p.x, p.y) for p in o.occupied} | {(a.position.x, a.position.y)}
     options = []
     for kind, need in needs.items():

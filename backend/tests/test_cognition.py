@@ -327,3 +327,109 @@ async def test_speech_mailbox_survives_goal_refresh_and_answers_heard_words(dial
     finally:
         await policy.close()
         store.close()
+
+
+@pytest.mark.asyncio
+async def test_proactive_dialogue_is_rate_limited_without_overriding_action(monkeypatch):
+    engine, store = fixture_world()
+    a, b = list(engine.world.agents.values())[:2]
+    a.position, b.position = Position(x=0, y=0), Position(x=1, y=0)
+    a.hunger, a.energy = 10, 90
+    policy = CognitionPolicy(
+        engine.policy,
+        Settings(
+            dialogue_url="https://openrouter.ai/api/v1",
+            dialogue_model="minimax/minimax-m3.1-flash:free",
+            dialogue_proactive=True,
+            dialogue_min_interval=6,
+            dialogue_speaker_interval=30,
+        ),
+    )
+    policy.reset(engine.run_id)
+    monkeypatch.setattr(
+        policy.fallback, "decide", lambda o, **kw: AgentIntent(actor_id=a.id, action=Action.REST)
+    )
+    calls = []
+
+    def handler(request):
+        calls.append(json.loads(request.content))
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": '{"text":"Are you hungry?"}'}}]}
+        )
+
+    await policy.client.aclose()
+    policy.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        # Avoid unrelated goal inference in this scheduler test.
+        policy._batch_mode = True
+        o = build_observation(engine.world, a.id, access=engine.access)
+        intent = policy.decide(o)
+        assert intent.action == Action.REST
+        assert a.id in policy.dialogue_tasks
+        await asyncio.gather(*policy.dialogue_tasks.values())
+        assert len(calls) == 1
+        assert calls[0]["reasoning"] == {"effort": "low", "exclude": True}
+        policy.speeches.clear()
+        policy.dialogue_last.clear()
+        policy.schedule_dialogue(engine.run_id, o, Choice(goal="socialize", reason="test"), {})
+        assert not policy.dialogue_tasks
+        # Even after the global interval expires, the speaker interval still applies.
+        policy.dialogue_next_request = 0
+        policy.schedule_dialogue(engine.run_id, o, Choice(goal="socialize", reason="test"), {})
+        assert not policy.dialogue_tasks
+    finally:
+        await policy.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_dialogue_rate_limit_backoff_does_not_expose_response_body():
+    from time import monotonic
+
+    engine, store = fixture_world()
+    a, b = list(engine.world.agents.values())[:2]
+    a.position, b.position = Position(x=0, y=0), Position(x=1, y=0)
+    policy = CognitionPolicy(
+        engine.policy, Settings(dialogue_url="https://speech.test/v1", dialogue_model="test")
+    )
+    await policy.client.aclose()
+    policy.client = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                429, headers={"Retry-After": "120"}, json={"error": "private response"}
+            )
+        )
+    )
+    try:
+        start = monotonic()
+        _, speech = await policy.speak(
+            build_observation(engine.world, a.id, access=engine.access),
+            Choice(goal="socialize", reason="test"),
+            {},
+        )
+        assert speech is None
+        assert policy.dialogue_next_request >= start + 120
+        assert policy.status()["last_error"] == "dialogue:HTTP429"
+        assert "private response" not in json.dumps(policy.status())
+    finally:
+        await policy.close()
+        store.close()
+
+
+def test_listener_waits_near_speaker_but_emergency_eating_takes_priority():
+    engine, store = fixture_world()
+    a, b = list(engine.world.agents.values())[:2]
+    a.position, b.position = Position(x=0, y=0), Position(x=1, y=0)
+    b.hunger, b.energy = 10, 70
+    policy = CognitionPolicy(engine.policy, Settings(enabled=False))
+    policy.reset(engine.run_id)
+    policy.dialogue_listeners[a.id] = b.id
+    try:
+        intent = policy.decide(build_observation(engine.world, b.id, access=engine.access))
+        assert intent.action == Action.SOCIALIZE
+        b.hunger, b.inventory.food = 95, 1
+        intent = policy.decide(build_observation(engine.world, b.id, access=engine.access))
+        assert intent.action == Action.EAT
+    finally:
+        asyncio.run(policy.close())
+        store.close()

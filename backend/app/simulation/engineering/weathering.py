@@ -27,6 +27,47 @@ def weather_damage(world, tick, environment):
     weather = environment["weather"]
     strength = environment.get("wind_strength", 0.95 if weather == "storm" else 0.35)
     for b in world.buildings.values():
+        if b.assembly and building_usable(b):
+            from app.simulation.engineering.assemblies import MATERIALS
+
+            d = b.assembly.design
+            n = sum(p.count for p in d.parts)
+            mass_strength = sum(MATERIALS[p.material]["strength"] * p.count for p in d.parts) / n
+            joint = {"loose": 0.15, "fiber": 0.65, "clay": 0.45, "fitted": 0.9}[d.joint]
+            device_resistance = 0.15 + mass_strength * 0.55 + joint * 0.25
+            wind_damage = max(0, strength - device_resistance) * 35 if weather != "rain" else 0
+            water_damage = 2 if any(p.material == "fiber" for p in d.parts) else 0.5
+            damage = min(b.durability, round(wind_damage + water_damage))
+            if damage:
+                b.durability -= damage
+                b.last_damage_cause, b.last_damage_tick = weather, tick
+                text = (
+                    f"{d.name} at ({b.position.x}, {b.position.y}) "
+                    f"{'collapsed' if b.durability == 0 else 'was damaged'} in {weather}: "
+                    f"{damage} durability lost"
+                )
+                events.append(
+                    (
+                        "BUILDING_COLLAPSED" if b.durability == 0 else "BUILDING_DAMAGED",
+                        {"building_id": b.id, "damage": damage, "cause": weather, "message": text},
+                    )
+                )
+                for a in world.agents.values():
+                    if a.alive and a.position.distance(b.position) <= vision_radius(a):
+                        retain(
+                            a,
+                            MemoryRecord(
+                                id=f"device-damage:{b.id}:{tick}",
+                                tick=tick,
+                                kind="reflection",
+                                text=text,
+                                outcome=-0.5,
+                                importance=0.8,
+                                position=a.position.model_copy(),
+                                target=b.position.model_copy(),
+                            ),
+                        )
+            continue
         if b.kind not in HOUSING or not building_usable(b) or b.design is None:
             continue
         wind_load = strength if weather in ("wind", "storm") else 0.10

@@ -159,7 +159,10 @@ def test_autonomous_construction_and_deterministic_replay(settlement_engine):
             if ev.event_type == "ACTION_RESOLVED":
                 actions.add(ev.payload["action"])
     assert "BUILD" in actions and "GATHER" in actions
-    assert any(b.kind == "shelter" and b.progress == 100 for b in e.world.buildings.values())
+    # Food production may precede housing when the community reserve falls.
+    assert any(
+        b.kind in ("shelter", "farm") and b.progress == 100 for b in e.world.buildings.values()
+    )
     assert state_hash(e.world) == state_hash(e.store.replay(e.run_id))
     assert state_hash(e.world) == state_hash(e.store.replay(e.run_id, use_snapshot=True))
 

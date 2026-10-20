@@ -1,3 +1,4 @@
+import { WorkshopPanel } from './WorkshopPanel'
 import type { Agent, Building, ShelterDesign, ToolDesign } from '../types/world'
 
 function describeTool(d:ToolDesign) {
@@ -11,6 +12,7 @@ export function EngineeringPanel({agent,buildings}:{agent:Agent;buildings:Buildi
   const k=agent.housing
   const tools=agent.inventions
   return <>
+    <WorkshopPanel agent={agent} buildings={buildings}/>
     <h3>Invention workshop</h3>
     <p className="helper">Assemblies are discovered through material and load tests. A failed prototype leaves evidence for the next attempt. One design can have several uses.</p>
     <dl className="details">

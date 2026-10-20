@@ -20,7 +20,19 @@ from app.simulation.observation.builder import Observation
 from app.simulation.pathfinding.astar import astar, local_waypoint, region_route
 from app.simulation.planning.tasks import select_task, skill_bonus
 
-SURVIVAL_GOALS = ("eat", "find_food", "take_shared_food", "make_food_space")
+SURVIVAL_GOALS = (
+    "eat",
+    "find_food",
+    "take_shared_food",
+    "make_food_space",
+    "recover_food",
+    "harvest_crop",
+    "make_harvest_space",
+    "hunt_food",
+    "steal_to_survive",
+    "defend_self",
+    "flee_attack",
+)
 
 DEFAULT_WEIGHTS = {
     "need": 0.55,
@@ -78,7 +90,18 @@ class UtilityPolicy:
         plans: dict[str, tuple[Action, dict]] = {}
 
         def add(goal, factors, action=Action.IDLE, rejection=None, **kwargs):
+            from app.simulation.actions.ecosystem import ECO_ACTIONS
+
             minimum_energy = {
+                **dict.fromkeys(ECO_ACTIONS, 6),
+                Action.EXPERIMENT_ASSEMBLY: 6,
+                Action.ASSEMBLE: 6,
+                Action.OPERATE: 6,
+                Action.HEAT: 6,
+                Action.DISMANTLE: 6,
+                Action.DIG: 6,
+                Action.MINE: 6,
+                Action.PLACE_BLOCK: 6,
                 Action.MOVE: 2,
                 Action.GATHER: 3,
                 Action.BUILD: 4,
@@ -158,7 +181,9 @@ class UtilityPolicy:
             "eat",
             {"hunger": hunger * 0.9, "immediate_survival": 0.28 if hunger > 0.85 else 0.05},
             Action.EAT,
-            rejection="No carried food" if not a.inventory.food else None,
+            rejection="No carried food"
+            if not (a.inventory.food or a.inventory.products.get("cooked_food", 0))
+            else None,
         )
         add(
             "rest",
@@ -193,7 +218,7 @@ class UtilityPolicy:
                 paths.append((len(path), r.id, path, r.position))
         food_factors = {
             "hunger": hunger * 0.52,
-            "food_reserve": 0.35 * max(0, 1 - a.inventory.food / 3),
+            "food_reserve": (0.16 if a.hunger < 35 else 0.35) * max(0, 1 - a.inventory.food / 3),
             "resourcefulness": t.resourcefulness * 0.1,
             "travel_cost": -0.06,
         }
@@ -370,6 +395,18 @@ class UtilityPolicy:
             rejection=rejection or (None if path else "No reachable frontier"),
         )
         self.settlement_goals(o, add, approach, walkable)
+        from app.simulation.policies.community import community_goals
+
+        community_goals(o, add, approach)
+        from app.simulation.policies.earthwork import earthwork_goals
+
+        earthwork_goals(o, add, approach)
+        from app.simulation.policies.workshop import workshop_goals
+
+        workshop_goals(o, add, approach)
+        from app.simulation.policies.ecosystem import ecosystem_goals
+
+        ecosystem_goals(o, add, approach)
         valid = [c for c in candidates if c.rejection is None]
         chosen = (
             max(valid, key=lambda c: (c.utility, c.goal))
@@ -382,9 +419,14 @@ class UtilityPolicy:
             survival = [c for c in valid if c.goal in SURVIVAL_GOALS]
             if survival:
                 chosen = max(survival, key=lambda c: (c.utility, c.goal))
+        defense = [c for c in valid if c.goal in ("defend_self", "flee_attack")]
+        if defense:
+            chosen = max(defense, key=lambda c: (c.utility, c.goal))
         previous = next((c for c in valid if c.goal == a.decision.selected_goal), None)
-        urgent = (a.hunger >= 65 and chosen.goal in SURVIVAL_GOALS) or (
-            a.energy < 12 and chosen.goal == "rest"
+        urgent = (
+            bool(defense)
+            or (a.hunger >= 65 and chosen.goal in SURVIVAL_GOALS)
+            or (a.energy < 12 and chosen.goal == "rest")
         )
         if previous and not urgent and a.decision.failures < 3:
             if o.tick < a.decision.commitment_until or chosen.utility < previous.utility + 0.09:

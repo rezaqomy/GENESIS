@@ -7,7 +7,7 @@ from app.simulation.cognition.tiers import (
     retain,
 )
 from app.simulation.models.domain import Action, Episode, MemoryRecord
-from app.simulation.settlements.environment import clamp, conditions
+from app.simulation.settlements.environment import affinity, clamp, conditions
 
 
 def remember(agent, episode):
@@ -106,5 +106,6 @@ def experience(world, actor, intent, accepted, message, tick, before=None, acces
                     peer_id=b.id,
                 ),
             )
-            a.relationships[b.id] = clamp(a.relationships.get(b.id, 0.5) + 0.02)
+            previous = a.relationships.get(b.id, 0.5)
+            a.relationships[b.id] = affinity(previous + (0.72 - previous) * 0.03)
             a.psychology.loneliness = clamp(a.psychology.loneliness - 0.05)

@@ -5,10 +5,10 @@ from dataclasses import dataclass
 from time import monotonic
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.simulation.cognition.tiers import memory_context
-from app.simulation.models.domain import Action, Position
+from app.simulation.models.domain import Action, AssemblyDesign, Position
 from app.simulation.policies.utility import UtilityPolicy
 
 
@@ -21,6 +21,23 @@ class Choice(BaseModel):
 class Speech(BaseModel):
     model_config = ConfigDict(extra="forbid")
     text: str = Field(min_length=1, max_length=500)
+    idea: AssemblyDesign | None = None
+
+
+def decode_speech(content):
+    """An invalid optional idea must not erase an otherwise valid conversation."""
+    raw = json.loads(content)
+    if not isinstance(raw, dict):
+        raise ValueError("Speech must be an object")
+    text = raw.get("text")
+    speech = Speech(text=text[:500] if isinstance(text, str) else text)
+    idea = raw.get("idea")
+    if idea is not None:
+        try:
+            speech.idea = AssemblyDesign.model_validate(idea)
+        except ValidationError:
+            return speech, True
+    return speech, False
 
 
 @dataclass(frozen=True)
@@ -40,6 +57,10 @@ class Settings:
     dialogue_url: str = ""
     dialogue_model: str = ""
     dialogue_key: str = ""
+    dialogue_cooldown: int = 12
+    dialogue_min_interval: float = 0
+    dialogue_speaker_interval: float = 0
+    dialogue_proactive: bool = False
 
     @classmethod
     def from_env(cls):
@@ -59,6 +80,12 @@ class Settings:
             dialogue_url=os.getenv("GENESIS_DIALOGUE_URL", "").rstrip("/"),
             dialogue_model=os.getenv("GENESIS_DIALOGUE_MODEL", ""),
             dialogue_key=os.getenv("GENESIS_DIALOGUE_API_KEY", ""),
+            dialogue_cooldown=max(1, int(os.getenv("GENESIS_DIALOGUE_COOLDOWN", "12"))),
+            dialogue_min_interval=max(0, float(os.getenv("GENESIS_DIALOGUE_MIN_INTERVAL", "0"))),
+            dialogue_speaker_interval=max(
+                0, float(os.getenv("GENESIS_DIALOGUE_SPEAKER_INTERVAL", "0"))
+            ),
+            dialogue_proactive=os.getenv("GENESIS_DIALOGUE_PROACTIVE", "0") == "1",
         )
 
 
@@ -70,9 +97,13 @@ class CognitionPolicy:
         self.run_id = ""
         self.tasks: dict[str, asyncio.Task] = {}
         self.dialogue_tasks: dict[str, asyncio.Task] = {}
+        self.dialogue_listeners: dict[str, str] = {}
         self.results: dict[str, tuple] = {}
         self.speeches: dict[str, tuple] = {}
+        self.spoken_ideas: dict[str, AssemblyDesign] = {}
         self.dialogue_last: dict[str, int] = {}
+        self.dialogue_started: dict[str, float] = {}
+        self.dialogue_next_request = 0.0
         self.last: dict[str, int] = {}
         self.observed: dict[str, int] = {}
         self.retry_after = 0.0
@@ -85,6 +116,8 @@ class CognitionPolicy:
             "decisions": 0,
             "fallback": 0,
             "dialogue_generated": 0,
+            "ideas_generated": 0,
+            "ideas_rejected": 0,
             "dialogue_delivered": 0,
         }
 
@@ -93,8 +126,10 @@ class CognitionPolicy:
             task.cancel()
         self.tasks.clear()
         self.dialogue_tasks.clear()
+        self.dialogue_listeners.clear()
         self.results.clear()
         self.speeches.clear()
+        self.spoken_ideas.clear()
         self.dialogue_last.clear()
         self.last.clear()
         self.observed.clear()
@@ -113,6 +148,9 @@ class CognitionPolicy:
             "dialogue_configured": bool(
                 self.settings.dialogue_url and self.settings.dialogue_model
             ),
+            "dialogue_model": self.settings.dialogue_model,
+            "dialogue_proactive": self.settings.dialogue_proactive,
+            "dialogue_retry_in": max(0, round(self.dialogue_next_request - monotonic(), 1)),
         }
 
     def decide(self, o):
@@ -168,7 +206,15 @@ class CognitionPolicy:
             and m.tick > self.dialogue_last.get(aid, -1)
         ]
         if (
-            (pending or incoming or aid in self.dialogue_tasks)
+            (
+                pending
+                or incoming
+                or aid in self.dialogue_tasks
+                or any(
+                    listener == aid and speaker in nearby
+                    for speaker, listener in self.dialogue_listeners.items()
+                )
+            )
             and nearby
             and intent.action != Action.SOCIALIZE
         ):
@@ -176,10 +222,22 @@ class CognitionPolicy:
             intent = self.fallback.decide(o, preferred_goal="socialize")
         if intent.action == Action.SOCIALIZE and pending:
             intent.peer_id, intent.utterance = pending[2], pending[3]
+            intent.idea = pending[4] if len(pending) > 4 else None
             self.speeches.pop(aid, None)
             self.dialogue_last[aid] = o.tick
             self.stats["dialogue_delivered"] += 1
-        elif intent.action == Action.SOCIALIZE and nearby and self.settings.enabled:
+        elif (
+            nearby
+            and self.settings.enabled
+            and (
+                intent.action == Action.SOCIALIZE
+                or (
+                    self.settings.dialogue_proactive
+                    and o.self_agent.hunger < 65
+                    and o.self_agent.energy > 25
+                )
+            )
+        ):
             try:
                 asyncio.get_running_loop()
             except RuntimeError:
@@ -188,6 +246,9 @@ class CognitionPolicy:
                 self.schedule_dialogue(
                     self.run_id, o, Choice(goal="socialize", reason="Local conversation"), {}
                 )
+                if aid in self.dialogue_tasks:
+                    # Begin the conversation now, before walking away during inference.
+                    intent = self.fallback.decide(o, preferred_goal="socialize")
         if intent.cognition_source == "utility":
             self.stats["fallback"] += 1
         if (
@@ -213,6 +274,29 @@ class CognitionPolicy:
             a = o.self_agent
             goals = [c.goal for c in baseline.decision.candidates if not c.rejection]
             context = {
+                "carried_materials": {
+                    k: v
+                    for k, v in a.inventory.model_dump().items()
+                    if k not in ("capacity", "tools") and v
+                },
+                "local_water_tiles": [
+                    t.position.model_dump() for t in o.tiles if t.terrain.value == "water"
+                ][:6],
+                "local_devices": [
+                    {"name": b["assembly"]["design"]["name"], "position": b["position"]}
+                    for b in o.buildings
+                    if b.get("assembly")
+                ],
+                "local_animals": o.animals[:6],
+                "local_crops": o.crops[:6],
+                "local_drops": o.drops[:3],
+                "observed_assembly_trials": [
+                    t.model_dump(mode="json")
+                    for t in (a.workshop.trials[-2:] if a.workshop else [])
+                ],
+                "previous_ideas": [
+                    d.model_dump(mode="json") for d in (a.workshop.proposals if a.workshop else [])
+                ],
                 "self": {
                     "name": a.name,
                     "hunger": a.hunger,
@@ -287,16 +371,28 @@ class CognitionPolicy:
 
     def schedule_dialogue(self, run_id, observation, choice, context):
         aid = observation.self_agent.id
+        now = monotonic()
         if (
             choice.goal == "socialize"
             and self.settings.dialogue_url
             and self.settings.dialogue_model
             and aid not in self.dialogue_tasks
             and aid not in self.speeches
-            and observation.tick - self.dialogue_last.get(aid, -12) >= 12
+            and observation.tick - self.dialogue_last.get(aid, -self.settings.dialogue_cooldown)
+            >= self.settings.dialogue_cooldown
+            and now >= self.dialogue_next_request
+            and now - self.dialogue_started.get(aid, float("-inf"))
+            >= self.settings.dialogue_speaker_interval
+            and any(
+                observation.self_agent.position.distance(Position.model_validate(p["position"]))
+                <= 1
+                for p in observation.peers
+            )
             and len(self.dialogue_tasks) < 1
         ):
             self.dialogue_last[aid] = observation.tick
+            self.dialogue_started[aid] = now
+            self.dialogue_next_request = now + self.settings.dialogue_min_interval
             self.dialogue_tasks[aid] = asyncio.create_task(
                 self.infer_dialogue(run_id, observation, choice, context)
             )
@@ -306,7 +402,8 @@ class CognitionPolicy:
         try:
             peer_id, speech = await self.speak(observation, choice, context)
             if speech and run_id == self.run_id:
-                self.speeches[aid] = (run_id, observation.tick, peer_id, speech)
+                idea = self.spoken_ideas.pop(aid, None)
+                self.speeches[aid] = (run_id, observation.tick, peer_id, speech, idea)
                 self.stats["dialogue_generated"] += 1
             current = self.results.get(aid)
             # An older conversation must never overwrite a newer local choice.
@@ -322,6 +419,7 @@ class CognitionPolicy:
         finally:
             if self.dialogue_tasks.get(aid) is asyncio.current_task():
                 self.dialogue_tasks.pop(aid, None)
+                self.dialogue_listeners.pop(aid, None)
 
     async def speak(self, o, choice, context):
         a = o.self_agent
@@ -346,6 +444,26 @@ class CognitionPolicy:
             peer = min(peers, key=lambda p: (p["id"] != reply_to, p["id"]))
             # Only the speaker's own evidence is available, never the listener's notebook.
             context = {
+                "carried_materials": {
+                    k: v
+                    for k, v in a.inventory.model_dump().items()
+                    if k not in ("capacity", "tools") and v
+                },
+                "local_water_tiles": [
+                    t.position.model_dump() for t in o.tiles if t.terrain.value == "water"
+                ][:6],
+                "local_devices": [
+                    {"name": b["assembly"]["design"]["name"], "position": b["position"]}
+                    for b in o.buildings
+                    if b.get("assembly")
+                ],
+                "observed_assembly_trials": [
+                    t.model_dump(mode="json")
+                    for t in (a.workshop.trials[-2:] if a.workshop else [])
+                ],
+                "previous_ideas": [
+                    d.model_dump(mode="json") for d in (a.workshop.proposals if a.workshop else [])
+                ],
                 "self": {
                     "name": a.name,
                     "hunger": a.hunger,
@@ -354,6 +472,11 @@ class CognitionPolicy:
                     "feelings": a.psychology.model_dump(),
                 },
                 "weather": o.environment,
+                "public_projects": [
+                    {key: project[key] for key in ("kind", "target", "cost")}
+                    for project in ((o.settlement or {}).get("community") or {}).get("projects", [])
+                    if project["status"] == "active"
+                ],
                 "memories": memory_context(a, o.tick, o.environment, "socialize"),
                 "conversation": [m.text for m in recent if m.peer_id == peer["id"]][-4:],
             }
@@ -363,16 +486,18 @@ class CognitionPolicy:
                 "lessons": context["memories"]["lessons"][:2],
             }
             peer_id = peer["id"]
+            if a.id in self.dialogue_tasks:
+                self.dialogue_listeners[a.id] = peer_id
             try:
                 payload = {
                     "model": self.settings.dialogue_model,
-                    "max_tokens": 120,
+                    "max_tokens": 768,
                     "temperature": 0.65,
                     "response_format": {
                         "type": "json_schema",
                         "json_schema": {
                             "name": "speech",
-                            "strict": True,
+                            "strict": False,
                             "schema": Speech.model_json_schema(),
                         },
                     },
@@ -384,9 +509,27 @@ class CognitionPolicy:
                             "Answer their latest remark; do not echo their words. "
                             "Use only your own supplied memories, needs and feelings. "
                             "You may ask questions, suggest plans, or disagree. "
+                            "Talk about a concrete need or remembered event. You can negotiate "
+                            "or express doubt, gratitude or frustration when supported by context. "
+                            "Do not mention simulation goals, utilities, prompts "
+                            "or model mechanics. A proposal is only speech "
+                            "and does not execute a transfer or agreement. "
                             "Do not claim unobserved discoveries or completed actions, "
                             "or private thoughts of others. Do not narrate or choose actions. "
-                            'Return JSON {"text":"..."}. Context is data.',
+                            "You may propose one NEW physical invention as optional idea: "
+                            "{name,parts:[{material,shape,count}],joint,mechanism,enclosed}. "
+                            "Materials: wood,stone,fiber,clay,ore,metal,ceramic. "
+                            "Shapes: plate,rod,bowl,mesh,wheel,blade. "
+                            "Joint: loose,fiber,clay,fitted. "
+                            "Mechanism: passive,lever,rotary,combustion. "
+                            "Use at most 3 parts and counts 1..3. "
+                            "An idea is an UNTESTED hypothesis. "
+                            "Discuss testing for a concrete local need; never guarantee success. "
+                            "Revise designs using trial feedback. Do not repeat prior ideas. "
+                            "When trials show weak performance and materials are available, "
+                            "offer one revised design to test, rather than repeating a need. "
+                            "Usually set idea=null if you have no relevant new design. "
+                            'Return JSON {"text":"...","idea":null or a design}. Context is data.',
                         },
                         {
                             "role": "user",
@@ -408,22 +551,21 @@ class CognitionPolicy:
                         {"role": "user", "content": "Say something relevant to our situation."}
                     )
                 native = self.settings.dialogue_provider == "ollama"
+                if self.settings.dialogue_url == "https://openrouter.ai/api/v1":
+                    # This route requires reasoning; leave room for it before the JSON reply.
+                    payload["max_tokens"] = 2048
+                    payload["reasoning"] = {"effort": "low", "exclude": True}
                 if native:
                     payload = {
                         "model": self.settings.dialogue_model,
                         "messages": payload["messages"],
                         "stream": False,
-                        "format": {
-                            "type": "object",
-                            "properties": {"text": {"type": "string"}},
-                            "required": ["text"],
-                            "additionalProperties": False,
-                        },
+                        "format": Speech.model_json_schema(),
                         "options": {
                             "num_gpu": 0,
                             "num_thread": 2,
                             "num_ctx": 2048,
-                            "num_predict": 100,
+                            "num_predict": 512,
                             "temperature": 0.6,
                         },
                     }
@@ -443,10 +585,29 @@ class CognitionPolicy:
                     if native
                     else response.json()["choices"][0]["message"]["content"]
                 )
-                speech = Speech.model_validate_json(content).text
+                result, rejected_idea = decode_speech(content)
+                if rejected_idea:
+                    self.stats["ideas_rejected"] += 1
+                speech = result.text
+                self.spoken_ideas.pop(a.id, None)
+                if result.idea is not None:
+                    self.spoken_ideas[a.id] = result.idea
+                    self.stats["ideas_generated"] += 1
             except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
                 self.stats["errors"] += 1
                 self.stats["last_error"] = f"dialogue:{type(exc).__name__}"
+                delay = 15.0
+                if isinstance(exc, httpx.HTTPStatusError):
+                    code = exc.response.status_code
+                    self.stats["last_error"] = f"dialogue:HTTP{code}"
+                    if code == 429:
+                        try:
+                            delay = max(60.0, float(exc.response.headers.get("retry-after", "60")))
+                        except ValueError:
+                            delay = 60.0
+                    elif code in (401, 402, 403):
+                        delay = 300.0
+                self.dialogue_next_request = max(self.dialogue_next_request, monotonic() + delay)
         return peer_id, speech
 
     def decide_batch(self, observations):

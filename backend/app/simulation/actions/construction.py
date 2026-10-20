@@ -83,6 +83,19 @@ def validate_construction(world: WorldState, intent, access) -> str | None:
         s = storage_access(world, a)
         if s is None:
             return "Shared storage must be within two tiles"
+        if intent.assembly_design is not None:
+            from app.simulation.engineering.assemblies import cost, design_id
+
+            if (
+                intent.action != Action.WITHDRAW
+                or not a.workshop
+                or not any(
+                    design_id(t.design) == design_id(intent.assembly_design)
+                    for t in a.workshop.trials
+                )
+                or intent.item not in cost(intent.assembly_design)
+            ):
+                return "Device supplies require a personally tested assembly plan"
         if intent.item not in RESOURCE_KINDS:
             return "Unsupported storage item"
         source, destination = (
@@ -129,6 +142,10 @@ def validate_construction(world: WorldState, intent, access) -> str | None:
         if not affordable({"fuel": 1}, materials(world, a, b.position)):
             return "No fuel available"
     elif intent.action == Action.BUILD:
+        if world.ecosystem and any(
+            c.position == intent.target for c in world.ecosystem.crops.values()
+        ):
+            return "Cannot build over a planted crop"
         if intent.building_kind not in BUILD_COSTS:
             return "Unsupported building recipe"
         if intent.target is None or a.position.distance(intent.target) > 1:
@@ -186,6 +203,8 @@ def resolve_construction(world, intent, access) -> str:
         )
         setattr(source, intent.item, getattr(source, intent.item) - intent.amount)
         setattr(destination, intent.item, getattr(destination, intent.item) + intent.amount)
+        if intent.assembly_design is not None:
+            a.workshop.planned = intent.assembly_design.model_copy(deep=True)
         verb = "stored" if intent.action == Action.STORE else "withdrew"
         return f"{a.name} {verb} {intent.amount} {intent.item}"
     if intent.action == Action.CRAFT:

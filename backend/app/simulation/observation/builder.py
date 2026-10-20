@@ -18,6 +18,9 @@ class Observation(Model):
     path_budget: int = 600
     settlement: dict | None = None
     buildings: list[dict] = Field(default_factory=list)
+    animals: list[dict] = Field(default_factory=list)
+    crops: list[dict] = Field(default_factory=list)
+    drops: list[dict] = Field(default_factory=list)
     local_effects: dict[str, float] = Field(default_factory=dict)
 
 
@@ -52,16 +55,51 @@ def build_observation(
             "center": settlement.center.model_dump(),
             "storage": settlement.storage.model_dump(),
             "food_reserves": settlement.storage.food,
+            "community": settlement.community.model_dump(mode="json")
+            if settlement.community
+            else None,
         }
 
     return Observation(
         vision_radius=radius,
+        animals=[
+            v.model_dump(mode="json")
+            for v in world.ecosystem.animals.values()
+            if agent.alive and visible(v.position)
+        ]
+        if world.ecosystem
+        else [],
+        crops=[
+            v.model_dump(mode="json")
+            for v in world.ecosystem.crops.values()
+            if agent.alive and visible(v.position)
+        ]
+        if world.ecosystem
+        else [],
+        drops=[
+            v.model_dump(mode="json")
+            for v in world.ecosystem.drops.values()
+            if agent.alive and visible(v.position)
+        ]
+        if world.ecosystem
+        else [],
         environment=conditions(world.config.seed, world.tick),
         peers=[
             {
                 "id": a.id,
                 "name": a.name,
                 "position": a.position.model_dump(),
+                "need": "care"
+                if a.health < 45 and a.inventory.food == 0
+                else "food"
+                if a.hunger >= 55 and a.inventory.food == 0
+                else None,
+                "trade_offer": a.workshop.offer.model_dump(mode="json")
+                if a.workshop
+                and a.workshop.offer
+                and a.workshop.offer.peer_id == actor_id
+                and agent.position.distance(a.position) <= 1
+                else None,
                 "tools": [
                     {"id": key, "design": trial.design.model_dump(mode="json")}
                     for key, trial in (a.inventions.designs.items() if a.inventions else [])

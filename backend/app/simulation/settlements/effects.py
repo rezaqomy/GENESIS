@@ -42,6 +42,10 @@ def local_effects(
         if b.kind == "campfire" and b.fuel > 0 and distance <= 5:
             warmth = max(warmth, (1 - distance / 6) * 0.85)
             protection += 0.18 * (1 - distance / 6)
+        if b.assembly and distance <= 2:
+            measured = b.assembly.measured
+            comfort = max(comfort, measured.get("shelter", 0) * b.durability / 100)
+            protection += measured.get("shelter", 0) * 0.2 * b.durability / 100
         if b.kind in ("shelter", "remote_camp") and distance <= 2:
             condition = b.quality * b.durability / 100
             comfort = max(comfort, (0.85 if b.kind == "shelter" else 0.6) * condition)
@@ -111,7 +115,11 @@ def settlement_tick(world: WorldState, access) -> None:
             if k in world.buildings and building_usable(world.buildings[k])
         ]
         s.food_reserves = s.storage.food
-        s.storage.capacity = 80 + sum(b.kind == "storage" for b in buildings) * 80
+        s.storage.capacity = (
+            80
+            + sum(b.kind == "storage" for b in buildings) * 80
+            + sum(int(b.assembly.measured.get("storage", 0) * 24) for b in buildings if b.assembly)
+        )
         s.influence = round(6 + math.sqrt(len(buildings)) * 2 + s.social_cohesion * 3, 2)
         if members:
             s.social_cohesion = clamp(

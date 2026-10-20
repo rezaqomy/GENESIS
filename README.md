@@ -40,6 +40,31 @@ The example configuration enables local conversations with `GENESIS_DIALOGUE_PRO
 
 Nearby agents generate short English utterances from their own memories and recent exchanges. Both remember accepted messages; replies are independent of Laya goal refreshes. One dialogue job runs at a time, with a 12-tick cooldown per speaker. Leaving hearing range, stale messages and survival emergencies prevent delivery. Use **World Journal → DIALOGUE** to read conversations. Spoken claims are memories, not automatically verified recipes or map facts. See [dialogue behavior and validation (Persian)](docs/dialogue.fa.md).
 
+For OpenRouter conversations, set `GENESIS_DIALOGUE_PROVIDER=compatible`,
+`GENESIS_DIALOGUE_URL=https://openrouter.ai/api/v1`, and
+`GENESIS_DIALOGUE_MODEL=minimax/minimax-m3.1-flash:free`. Store
+`GENESIS_DIALOGUE_API_KEY` only in the ignored local `.env` file. Set
+`GENESIS_DIALOGUE_PROACTIVE=1` to let adjacent agents initiate conversations even
+while pursuing other goals, provided hunger is below 65 and energy above 25.
+Survival guards still control delivery. For this free endpoint, suggested settings
+are `GENESIS_DIALOGUE_COOLDOWN=8` ticks, `GENESIS_DIALOGUE_MIN_INTERVAL=6` seconds
+globally and `GENESIS_DIALOGUE_SPEAKER_INTERVAL=30` seconds per speaker. Requests
+remain serialized, with backoff after HTTP errors, including rate limits. Daily
+provider quotas can still stop conversation generation. `/api/cognition` exposes
+the dialogue model, counters and retry delay, never the API key. Speech proposals
+do not automatically execute trades, transfers or other social actions.
+
+## Community cooperation
+
+Agents can post local public construction projects, pool their materials, give spare
+meals to needy neighbours, and repair standing structures. Food production and
+maintenance compete with private goals, with emergency survival taking priority.
+The settlement's **Working together** section shows the current project and actual
+contributions to food supply, materials, construction, irrigation and care. These
+are observed activities, not assigned professions. Public notices remain local to
+the meeting place; speech alone does not execute an agreement. See
+[community mechanics and evaluation](docs/community-cooperation.fa.md).
+
 ## Docker
 
 ```sh
@@ -100,3 +125,17 @@ make e2e
 ```
 
 It verifies autonomous changes, pause/step, selection through Pixi hit testing, personality/decision tabs, minimap/follow, camera controls, network reconnect, survival actions, replay hashes, journal filters, seed reset and responsive layout. Screenshots are saved under `artifacts/`. Chromium's software WebGL is enabled for headless verification; an interactive browser needs WebGL support. Each browser run uses a fresh isolated database, leaving the running development world untouched.
+
+Minecraft-inspired expansion: [scope and current mechanics (Persian)](docs/minecraft-scope.fa.md).
+Modern worlds support local `DIG`, `MINE`, and `PLACE_BLOCK` terrain work with conserved
+materials, tested mining tools, collision updates, and replayable terrain events.
+This is an initial 2D foundation; it does not implement Minecraft feature parity.
+
+The [creative workshop (Persian)](docs/creative-workshop.fa.md) adds physical assembly
+hypotheses from conversation or empirical search, paid trials, device fabrication,
+finite fishing, water collection, cultivation, heating/smelting/cooking, salvage,
+and two-party barter. Inspect an agent's Building tab for proposals and measured outcomes.
+
+### Living systems
+
+The 2D world now includes seed crops with moisture and daylight growth, finite wildlife, feeding/taming/breeding, animal produce, adjacent combat, theft with relationship consequences, and recoverable belongings after death. Agents consider these through local utility goals and model context; automatic use of every capability is not guaranteed. This is not Minecraft feature parity. See [rules and limitations (Persian)](docs/living-world.fa.md) and [scope](docs/minecraft-scope.fa.md). Run `PYTHONPATH=backend .venv/bin/python scripts/evaluate_ecosystem.py --ticks 1200 --seed 42` for an isolated autonomous evaluation.

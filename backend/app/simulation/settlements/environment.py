@@ -53,6 +53,10 @@ def clamp(value: float) -> float:
     return round(min(1.0, max(0.0, value)), 4)
 
 
+def affinity(value: float) -> float:
+    return round(min(1.0, max(-1.0, value)), 4)
+
+
 def experience_tick(world: WorldState, access) -> None:
     env = conditions(world.config.seed, world.tick + 1)
     index = SpatialIndex(world)
@@ -75,9 +79,12 @@ def experience_tick(world: WorldState, access) -> None:
         p.social_satisfaction = clamp(p.social_satisfaction * 0.94 + social * 0.06)
         for b in peers:
             previous = a.relationships.get(b.id, 0.5)
-            a.relationships[b.id] = clamp(
-                previous + 0.003 * (1 - abs(traits.sociability - b.personality.sociability))
-            )
+            a.relationships[b.id] = affinity(previous + 0.001 * (0.65 - previous))
+        if (world.tick + 1) % 240 == 0:
+            a.relationships = {
+                key: affinity(value + (0.5 - value) * 0.05)
+                for key, value in a.relationships.items()
+            }
         safety = clamp(0.45 + min(0.25, len(peers) * 0.05) - env["cold"] * 0.32)
         # Later settlement structures provide local effects through this one boundary.
         if world.settlements:

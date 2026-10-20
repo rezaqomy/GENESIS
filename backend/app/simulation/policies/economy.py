@@ -18,7 +18,13 @@ def settlement_goals(o, add, approach, walkable):
     center = Position.model_validate(s["center"]) if s else a.home
     distance = a.position.distance(center)
     storage = s["storage"] if s else {k: 0 for k in RESOURCE_KINDS}
+    board = (s or {}).get("community") or {}
+    shared = next((p for p in board.get("projects", []) if p["status"] == "active"), None)
     design = best_design(a)
+    if shared and shared.get("design"):
+        from app.simulation.models.domain import ShelterDesign
+
+        design = ShelterDesign.model_validate(shared["design"])
 
     def count(kind):
         return sum(b["kind"] == kind and building_usable(b) for b in buildings)
@@ -38,7 +44,7 @@ def settlement_goals(o, add, approach, walkable):
         return min(positions, key=lambda v: (a.position.distance(v), v.y, v.x))
 
     cache = transfer_position()
-    if s and s["food_reserves"] > 0 and a.inventory.food < 2:
+    if s and s["food_reserves"] > 0 and a.inventory.food == 0:
         approach(
             "take_shared_food",
             cache,
@@ -228,6 +234,7 @@ def settlement_goals(o, add, approach, walkable):
             "comfort_preference": t.comfort_preference * 0.15,
             "housing_need": 0.24 if kind == "shelter" else 0.12,
             "travel_cost": -min(1, a.position.distance(target) / 40) * 0.15,
+            "shared_project": 0.24 if shared else 0,
         }
         if ready:
             approach(
@@ -248,8 +255,16 @@ def settlement_goals(o, add, approach, walkable):
                 for k, v in cost.items()
                 if getattr(a.inventory, k) + (storage[k] if communal else 0) < v
             ]
+    if shared:
+        # Suppliers follow the published budget even if they have not learned its design.
+        project_cost = shared["cost"]
+        if not building_plan or not building_plan[2] or building_plan[2]["durability"] == 0:
+            missing = [key for key, n in project_cost.items() if storage[key] < n]
     # Distant projects require physically hauling communal materials to the site.
-    project_item = next((k for k in missing if storage[k] > 0), None)
+    project_item = next(
+        (k for k in missing if storage[k] > 0 and getattr(a.inventory, k) < project_cost[k]),
+        None,
+    )
     if s and project_item and building_plan and carrying_room(a.inventory, project_item) > 0:
         remaining = project_cost[project_item] - getattr(a.inventory, project_item)
         amount = min(4, remaining, storage[project_item], carrying_room(a.inventory, project_item))
@@ -271,9 +286,17 @@ def settlement_goals(o, add, approach, walkable):
         add("take_materials", {}, rejection="No communal material needed for a distant project")
     reserved = (
         project_cost
-        if building_plan and (building_plan[2] is None or building_plan[2]["durability"] == 0)
+        if building_plan
+        and not shared
+        and (building_plan[2] is None or building_plan[2]["durability"] == 0)
         else {}
     )
+    if a.workshop and a.workshop.planned:
+        from app.simulation.engineering.assemblies import cost as assembly_cost
+
+        for material, amount in assembly_cost(a.workshop.planned).items():
+            if material in RESOURCE_KINDS:
+                reserved[material] = max(reserved.get(material, 0), amount)
     surplus = next(
         (
             k
@@ -293,6 +316,11 @@ def settlement_goals(o, add, approach, walkable):
                 "inventory_pressure": a.inventory.total / a.inventory.capacity * 0.4,
                 "loyalty": t.loyalty * 0.12,
                 "material_supply": 0.25 if surplus != "food" else 0.06,
+                "shared_project": 0.25
+                if shared
+                and surplus in shared["cost"]
+                and storage[surplus] < shared["cost"][surplus]
+                else 0,
                 "travel_cost": -min(1, distance / 30) * 0.1,
             },
             Action.STORE,
@@ -318,13 +346,21 @@ def settlement_goals(o, add, approach, walkable):
         if s
         else ["wood", "fiber"]
     )
+    if shared:
+        shortages = [k for k, amount in shared["cost"].items() if storage[k] < amount]
     experiment_missing = [
         key
         for key, value in experiment_cost.items()
         if experiment_needed
         and getattr(a.inventory, key) + (storage[key] if s and distance <= 8 else 0) < value
     ]
-    wanted = list(dict.fromkeys(experiment_missing + missing + shortages))
+    wanted = list(
+        dict.fromkeys(
+            shortages + missing + experiment_missing
+            if shared
+            else experiment_missing + missing + shortages
+        )
+    )
     resources = [
         r
         for r in o.resources
@@ -344,6 +380,7 @@ def settlement_goals(o, add, approach, walkable):
                 "cooperation": t.cooperation * 0.25,
                 "ambition": t.ambition * 0.22,
                 "construction_shortage": 0.24 if missing else 0.1,
+                "shared_project": 0.28 if shared and resource.kind in shortages else 0,
                 "resourcefulness": t.resourcefulness * 0.12,
                 "travel_cost": -min(1, a.position.distance(resource.position) / 20) * 0.12,
                 "hunger_cost": -a.hunger / 100 * 0.1,
