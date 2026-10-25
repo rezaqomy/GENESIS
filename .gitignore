@@ -14,3 +14,7 @@ artifacts/
 frontend/test-results/
 frontend/playwright-report/
 .venv-laya/
+
+# Local experiment campaigns and generated reports
+/experiments/
+/output/
