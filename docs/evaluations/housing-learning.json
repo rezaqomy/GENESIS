@@ -1,0 +1,31 @@
+{
+  "conditions": "Supplied materials, one actor, same tested design, 120 storm ticks",
+  "novice": {
+    "prototype_work_actions": 3,
+    "retained_trials": 1,
+    "practice": 11,
+    "quality": 0.5024,
+    "initial_durability": 68,
+    "remaining_durability": 0,
+    "storm_damage_events": 4,
+    "collapse_events": 1,
+    "observed_lessons": [
+      "practice"
+    ],
+    "replay_matches": true
+  },
+  "practiced": {
+    "prototype_work_actions": 60,
+    "retained_trials": 12,
+    "practice": 68,
+    "quality": 0.9484,
+    "initial_durability": 97,
+    "remaining_durability": 87,
+    "storm_damage_events": 10,
+    "collapse_events": 0,
+    "observed_lessons": [
+      "practice"
+    ],
+    "replay_matches": true
+  }
+}

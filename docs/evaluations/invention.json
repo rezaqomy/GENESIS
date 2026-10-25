@@ -1,0 +1,218 @@
+[
+  {
+    "seed": 42,
+    "ticks": 240,
+    "agents": 1,
+    "policy": "autonomous UtilityPolicy; no forced hypotheses or extra materials; Laya not used",
+    "actions": {
+      "MOVE": 139,
+      "EXPERIMENT": 6,
+      "WITHDRAW": 9,
+      "EXPERIMENT_TOOL": 24,
+      "BUILD": 4,
+      "REST": 43,
+      "GATHER": 5,
+      "STORE": 3,
+      "EAT": 4,
+      "REFUEL": 3
+    },
+    "rejections": {},
+    "agents_final": [
+      {
+        "id": "agent-00",
+        "alive": true,
+        "hunger": 6,
+        "tool_trials": 8,
+        "designs": {
+          "invention:d8a1b3a2985e": {
+            "design": {
+              "core": "stone",
+              "grip": "none",
+              "binding": "clay",
+              "form": "edge",
+              "length": 1,
+              "fueled": false
+            },
+            "tick": 11,
+            "performance": {
+              "cut": 0.3507,
+              "mine": 0.2104,
+              "light": 0.0
+            },
+            "feedback": [
+              "The prototype produced a useful measured effect; durability is limited."
+            ],
+            "source": "experiment"
+          },
+          "invention:e121e650aaab": {
+            "design": {
+              "core": "stone",
+              "grip": "none",
+              "binding": "clay",
+              "form": "edge",
+              "length": 1,
+              "fueled": true
+            },
+            "tick": 37,
+            "performance": {
+              "cut": 0.3586,
+              "mine": 0.2152,
+              "light": 0.0
+            },
+            "feedback": [
+              "The assembly did not sustain a useful flame.",
+              "The prototype produced a useful measured effect; durability is limited."
+            ],
+            "source": "experiment"
+          },
+          "invention:6fb17d66fc0e": {
+            "design": {
+              "core": "stone",
+              "grip": "none",
+              "binding": "fiber",
+              "form": "edge",
+              "length": 1,
+              "fueled": true
+            },
+            "tick": 58,
+            "performance": {
+              "cut": 0.3665,
+              "mine": 0.2199,
+              "light": 0.0
+            },
+            "feedback": [
+              "The assembly did not sustain a useful flame.",
+              "The prototype produced a useful measured effect; durability is limited."
+            ],
+            "source": "experiment"
+          },
+          "invention:1df33730f2a9": {
+            "design": {
+              "core": "stone",
+              "grip": "none",
+              "binding": "none",
+              "form": "edge",
+              "length": 1,
+              "fueled": true
+            },
+            "tick": 84,
+            "performance": {
+              "cut": 0.3745,
+              "mine": 0.2247,
+              "light": 0.0
+            },
+            "feedback": [
+              "The assembly did not sustain a useful flame.",
+              "The prototype produced a useful measured effect; durability is limited."
+            ],
+            "source": "experiment"
+          }
+        },
+        "failed_trials": 4,
+        "ongoing_steps": 0
+      }
+    ],
+    "replay_matches": true
+  },
+  {
+    "seed": 7,
+    "ticks": 240,
+    "agents": 1,
+    "policy": "autonomous UtilityPolicy; no forced hypotheses or extra materials; Laya not used",
+    "actions": {
+      "MOVE": 134,
+      "EXPERIMENT": 3,
+      "WITHDRAW": 9,
+      "EXPERIMENT_TOOL": 27,
+      "REST": 43,
+      "GATHER": 13,
+      "EAT": 4,
+      "REFUEL": 3,
+      "STORE": 4
+    },
+    "rejections": {},
+    "agents_final": [
+      {
+        "id": "agent-00",
+        "alive": true,
+        "hunger": 11,
+        "tool_trials": 9,
+        "designs": {
+          "invention:1bddcbba4093": {
+            "design": {
+              "core": "stone",
+              "grip": "stone",
+              "binding": "fiber",
+              "form": "edge",
+              "length": 1,
+              "fueled": false
+            },
+            "tick": 54,
+            "performance": {
+              "cut": 0.387,
+              "mine": 0.2322,
+              "light": 0.0
+            },
+            "feedback": [
+              "The prototype produced a useful measured effect; durability is limited."
+            ],
+            "source": "experiment"
+          },
+          "invention:5c70745ed8a9": {
+            "design": {
+              "core": "stone",
+              "grip": "stone",
+              "binding": "fiber",
+              "form": "edge",
+              "length": 2,
+              "fueled": false
+            },
+            "tick": 87,
+            "performance": {
+              "cut": 0.4613,
+              "mine": 0.2768,
+              "light": 0.0
+            },
+            "feedback": [
+              "The prototype produced a useful measured effect; durability is limited."
+            ],
+            "source": "experiment"
+          }
+        },
+        "failed_trials": 7,
+        "ongoing_steps": 0
+      }
+    ],
+    "replay_matches": true
+  },
+  {
+    "seed": 19,
+    "ticks": 240,
+    "agents": 1,
+    "policy": "autonomous UtilityPolicy; no forced hypotheses or extra materials; Laya not used",
+    "actions": {
+      "MOVE": 94,
+      "EXPERIMENT": 3,
+      "BUILD": 36,
+      "WITHDRAW": 7,
+      "GATHER": 46,
+      "REST": 44,
+      "STORE": 5,
+      "REFUEL": 3,
+      "EAT": 2
+    },
+    "rejections": {},
+    "agents_final": [
+      {
+        "id": "agent-00",
+        "alive": true,
+        "hunger": 5,
+        "tool_trials": 0,
+        "designs": {},
+        "failed_trials": 0,
+        "ongoing_steps": 0
+      }
+    ],
+    "replay_matches": true
+  }
+]

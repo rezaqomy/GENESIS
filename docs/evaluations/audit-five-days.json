@@ -1,0 +1,111 @@
+[
+  {
+    "seed": 42,
+    "ticks": 1200,
+    "alive": 10,
+    "mean_living_hunger": 23.06,
+    "actions": {
+      "MOVE": 8336,
+      "WITHDRAW": 88,
+      "BUILD": 44,
+      "IDLE": 9,
+      "GATHER": 758,
+      "EAT": 615,
+      "REST": 1867,
+      "STORE": 103,
+      "CRAFT": 30,
+      "REFUEL": 23,
+      "SOCIALIZE": 84
+    },
+    "rejections": {
+      "Build site already occupied by a structure": 3,
+      "Cannot build an obstacle on an agent": 3,
+      "Storage transfer lacks requested quantity": 8,
+      "Resource is depleted": 22,
+      "No companion within one tile": 7
+    },
+    "task_outcomes": {
+      "forage:succeeded": 184,
+      "construction:succeeded": 10,
+      "construction:cancelled": 7,
+      "expedition:succeeded": 36,
+      "expedition:failed": 25,
+      "forage:failed": 6
+    },
+    "navigation": {
+      "detour": 184,
+      "yield": 8
+    },
+    "successful_task_means": {
+      "ticks": 23.68,
+      "action_energy": 43.12
+    },
+    "verified_skills": 48,
+    "completed_buildings": 12,
+    "mean_tick_ms": 237.07,
+    "state_bytes": 465565,
+    "memory_counts": {
+      "agent-00": {
+        "short": 24,
+        "long": 64,
+        "facts": 14,
+        "lessons": 20
+      },
+      "agent-01": {
+        "short": 13,
+        "long": 64,
+        "facts": 16,
+        "lessons": 20
+      },
+      "agent-02": {
+        "short": 17,
+        "long": 64,
+        "facts": 12,
+        "lessons": 24
+      },
+      "agent-03": {
+        "short": 15,
+        "long": 64,
+        "facts": 16,
+        "lessons": 22
+      },
+      "agent-04": {
+        "short": 20,
+        "long": 64,
+        "facts": 16,
+        "lessons": 22
+      },
+      "agent-05": {
+        "short": 22,
+        "long": 64,
+        "facts": 12,
+        "lessons": 24
+      },
+      "agent-06": {
+        "short": 19,
+        "long": 64,
+        "facts": 13,
+        "lessons": 23
+      },
+      "agent-07": {
+        "short": 19,
+        "long": 64,
+        "facts": 11,
+        "lessons": 22
+      },
+      "agent-08": {
+        "short": 21,
+        "long": 64,
+        "facts": 16,
+        "lessons": 25
+      },
+      "agent-09": {
+        "short": 24,
+        "long": 64,
+        "facts": 19,
+        "lessons": 22
+      }
+    },
+    "replay_verified": true
+  }
+]

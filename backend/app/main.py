@@ -17,6 +17,7 @@ from app.api.schemas import (
 from app.services.simulation import SimulationService
 from app.simulation.events.reducer import state_hash
 from app.simulation.models.domain import Agent, Chunk, Settlement, WorldConfig
+from app.simulation.observation.builder import build_observation
 
 
 def create_app(database: str | None = None) -> FastAPI:
@@ -63,6 +64,11 @@ def create_app(database: str | None = None) -> FastAPI:
             raise HTTPException(status_code=503, detail="Simulation writer stopped")
         return {"status": "ok"}
 
+    @app.get("/api/cognition")
+    async def cognition():
+        policy = service().cognition
+        return policy.status() if policy else {"enabled": False}
+
     @app.get("/api/world", response_model=Snapshot)
     async def world():
         return service().snapshot()
@@ -88,6 +94,16 @@ def create_app(database: str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Unknown agent")
         return a
 
+    @app.get("/api/agents/{agent_id}/observation")
+    async def observation(agent_id: str):
+        svc = service()
+        if agent_id not in svc.engine.world.agents:
+            raise HTTPException(status_code=404, detail="Unknown agent")
+        return {
+            "run_id": svc.engine.run_id,
+            "observation": build_observation(svc.engine.world, agent_id, access=svc.engine.access),
+        }
+
     @app.get("/api/events", response_model=EventsResponse)
     async def events(
         after: int = Query(default=0, ge=0),
@@ -109,6 +125,30 @@ def create_app(database: str | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return {"run_id": run_id, "state": state, "state_hash": state_hash(state)}
+
+    @app.get("/api/history")
+    async def history(run_id: str | None = None):
+        svc = service()
+        return svc.store.history(run_id or svc.engine.run_id)
+
+    @app.get("/api/journal", response_model=EventsResponse)
+    async def journal(
+        after: int = Query(default=0, ge=0),
+        through: int | None = Query(default=None, ge=0),
+        limit: int = Query(default=1500, ge=1, le=1500),
+        run_id: str | None = None,
+    ):
+        svc = service()
+        run_id = run_id or svc.engine.run_id
+        watermark = svc.store.sequence(run_id)
+        if through is not None:
+            watermark = min(watermark, through)
+        rows = svc.store.journal(run_id, after, watermark, limit)
+        return {
+            "run_id": run_id,
+            "events": [svc.readable_event(event) for event in rows],
+            "next_sequence": watermark,
+        }
 
     @app.post("/api/simulation/start", response_model=Snapshot)
     async def start():
@@ -187,13 +227,17 @@ def create_app(database: str | None = None) -> FastAPI:
             done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             for task in done:
                 task.result()
-        except (WebSocketDisconnect, RuntimeError):
+        except (WebSocketDisconnect, RuntimeError, asyncio.CancelledError):
             pass
         finally:
             svc.subscribers.discard(queue)
             for task in tasks:
                 task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
+            try:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            except asyncio.CancelledError:
+                # Disconnect/shutdown can cancel the handler during child cleanup.
+                pass
 
     return app
 

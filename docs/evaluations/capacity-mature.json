@@ -1,0 +1,32 @@
+[
+  {
+    "agents_requested": 10,
+    "agents_actual": 10,
+    "alive_final": 10,
+    "mode": "utility_unpaced",
+    "ticks": 100,
+    "initial_tick": 1221,
+    "scenario": "checkpoint",
+    "warmup_ticks_excluded": 10,
+    "wall_seconds": 27.17,
+    "process_cpu_seconds": 26.3,
+    "tick_ms": {
+      "p50": 239.43,
+      "p95": 304.33,
+      "p100": 322.53
+    },
+    "decision_ms": {
+      "p50": 138.89,
+      "p95": 205.06,
+      "p100": 215.66
+    },
+    "state_serialization_ms": {
+      "p50": 19.04,
+      "p95": 68.27,
+      "p100": 74.77
+    },
+    "final_state_bytes": 504440,
+    "database_bytes": 63327408,
+    "process_peak_rss_mib_cumulative": 73.5
+  }
+]

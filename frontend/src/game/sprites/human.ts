@@ -25,7 +25,7 @@ export class Human {
   draw(time:number,selected:boolean,running:boolean,mining=false) {
     const a=this.agent,walking=this.progress<1||a.current_action==='MOVE'
     let action=walking?1:0
-    if(!walking)action=({GATHER:mining?3:2,BUILD:4,CRAFT:5,REST:6,SOCIALIZE:7,REFUEL:2,STORE:2,WITHDRAW:2,EAT:2,IDLE:0,MOVE:1} as Record<string,number>)[a.current_action]??0
+    if(!walking)action=({EXPERIMENT_ASSEMBLY:5,ASSEMBLE:4,OPERATE:2,HEAT:5,DISMANTLE:3,OFFER_TRADE:7,ACCEPT_TRADE:7,DIG:3,MINE:3,PLACE_BLOCK:4,GATHER:mining?3:2,REPAIR:4,GIVE:7,PROPOSE_PROJECT:7,BUILD:4,CRAFT:5,EXPERIMENT:5,EXPERIMENT_TOOL:5,REST:6,SOCIALIZE:7,REFUEL:2,STORE:2,WITHDRAW:2,EAT:2,IDLE:0,MOVE:1} as Record<string,number>)[a.current_action]??0
     const frame=running||this.progress<1?Math.floor(time*(action===1?7:3))%4:0
     if(this.sprite)this.sprite.texture=this.frames[(this.direction*8+action)*4+frame]
     else {
@@ -33,7 +33,7 @@ export class Human {
     }
     this.ring.clear().ellipse(0,0,10,3).fill({color:'#152820',alpha:.25})
     if(selected){this.ring.ellipse(0,0,14,5).stroke({color:'#f6dda0',width:2});this.ring.poly([-3,-45,3,-45,0,-40]).fill('#ffe8ae')}
-    this.indicator.text=!a.alive?'†':({GATHER:mining?'mining':'gathering',BUILD:'building',CRAFT:'crafting',REST:'z z',SOCIALIZE:'chatting',REFUEL:'tending fire',EAT:'eating',STORE:'storing',WITHDRAW:'resupply',MOVE:'',IDLE:''} as Record<string,string>)[a.current_action]??''
+    this.indicator.text=!a.alive?'†':({EXPERIMENT_ASSEMBLY:'testing invention',ASSEMBLE:'fabricating',OPERATE:'operating device',HEAT:'heating material',DISMANTLE:'salvaging',OFFER_TRADE:'offering trade',ACCEPT_TRADE:'bartering',DIG:'digging',MINE:'mining rock',PLACE_BLOCK:'placing block',GATHER:mining?'mining':'gathering',REPAIR:'repairing',GIVE:'sharing a meal',PROPOSE_PROJECT:'proposing project',BUILD:'building',CRAFT:'crafting',EXPERIMENT:'testing shelter',EXPERIMENT_TOOL:'inventing',REST:'z z',SOCIALIZE:'chatting',REFUEL:'tending fire',EAT:'eating',STORE:'storing',WITHDRAW:'resupply',MOVE:'',IDLE:''} as Record<string,string>)[a.current_action]??''
     this.node.alpha=a.alive?1:.4
   }
 }

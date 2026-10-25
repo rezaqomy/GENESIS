@@ -1,0 +1,340 @@
+[
+  {
+    "seed": 42,
+    "ticks": 240,
+    "policy": "UtilityPolicy (no model calls)",
+    "alive": 10,
+    "actions": {
+      "MOVE": 1485,
+      "EXPERIMENT": 42,
+      "WITHDRAW": 34,
+      "EXPERIMENT_TOOL": 156,
+      "BUILD": 13,
+      "PROPOSE_PROJECT": 3,
+      "REST": 369,
+      "EAT": 30,
+      "GATHER": 150,
+      "STORE": 40,
+      "SOCIALIZE": 57,
+      "REFUEL": 3,
+      "REPAIR": 2
+    },
+    "community": {
+      "projects": [
+        {
+          "id": "project:settlement-0:6",
+          "kind": "farm",
+          "target": {
+            "x": 1,
+            "y": -2
+          },
+          "proposer_id": "agent-07",
+          "created_tick": 6,
+          "deadline": 966,
+          "status": "completed",
+          "cost": {
+            "wood": 2,
+            "seeds": 2,
+            "water": 1
+          },
+          "design": null,
+          "contributors": {
+            "agent-03": 1,
+            "agent-02": 1
+          }
+        },
+        {
+          "id": "project:settlement-0:10",
+          "kind": "shelter",
+          "target": {
+            "x": 1,
+            "y": -1
+          },
+          "proposer_id": "agent-08",
+          "created_tick": 10,
+          "deadline": 970,
+          "status": "completed",
+          "cost": {
+            "fiber": 4,
+            "stone": 8,
+            "wood": 2
+          },
+          "design": {
+            "frame": "stone",
+            "roof": "fiber",
+            "bracing": true,
+            "raised_foundation": true
+          },
+          "contributors": {
+            "agent-09": 4,
+            "agent-07": 4,
+            "agent-08": 7,
+            "agent-00": 1,
+            "agent-06": 2,
+            "agent-01": 1,
+            "agent-04": 1
+          }
+        },
+        {
+          "id": "project:settlement-0:110",
+          "kind": "shelter",
+          "target": {
+            "x": -1,
+            "y": -1
+          },
+          "proposer_id": "agent-07",
+          "created_tick": 110,
+          "deadline": 1070,
+          "status": "active",
+          "cost": {
+            "fiber": 3,
+            "stone": 8
+          },
+          "design": {
+            "frame": "stone",
+            "roof": "fiber",
+            "bracing": false,
+            "raised_foundation": true
+          },
+          "contributors": {
+            "agent-07": 3,
+            "agent-01": 10,
+            "agent-03": 2,
+            "agent-09": 1,
+            "agent-06": 2
+          }
+        }
+      ],
+      "contributions": {
+        "agent-03": {
+          "construction": 3,
+          "materials": 5,
+          "food_supply": 1
+        },
+        "agent-05": {
+          "construction": 1
+        },
+        "agent-02": {
+          "construction": 1
+        },
+        "agent-07": {
+          "food_supply": 1,
+          "materials": 16,
+          "maintenance": 1
+        },
+        "agent-09": {
+          "materials": 19,
+          "maintenance": 1
+        },
+        "agent-08": {
+          "materials": 9,
+          "construction": 4,
+          "maintenance": 2,
+          "food_supply": 1
+        },
+        "agent-00": {
+          "materials": 2
+        },
+        "agent-06": {
+          "materials": 13
+        },
+        "agent-01": {
+          "materials": 12,
+          "construction": 4
+        },
+        "agent-04": {
+          "materials": 4,
+          "maintenance": 1
+        }
+      },
+      "meals_given": 0,
+      "repairs": 2,
+      "projects_completed": 2
+    },
+    "project_events": [
+      "Hearthgrove completed shared farm; 2 actual contributor(s)",
+      "Hearthgrove completed shared shelter; 7 actual contributor(s)"
+    ],
+    "farm_yield": 8,
+    "replay_matches": true
+  },
+  {
+    "seed": 7,
+    "ticks": 240,
+    "policy": "UtilityPolicy (no model calls)",
+    "alive": 10,
+    "actions": {
+      "MOVE": 1503,
+      "EXPERIMENT": 30,
+      "WITHDRAW": 50,
+      "BUILD": 4,
+      "EXPERIMENT_TOOL": 168,
+      "PROPOSE_PROJECT": 1,
+      "REST": 385,
+      "EAT": 20,
+      "GATHER": 164,
+      "SOCIALIZE": 2,
+      "STORE": 51,
+      "REFUEL": 2,
+      "IDLE": 1
+    },
+    "community": {
+      "projects": [
+        {
+          "id": "project:settlement-0:7",
+          "kind": "shelter",
+          "target": {
+            "x": 0,
+            "y": -2
+          },
+          "proposer_id": "agent-08",
+          "created_tick": 7,
+          "deadline": 967,
+          "status": "active",
+          "cost": {
+            "fiber": 3,
+            "stone": 8
+          },
+          "design": {
+            "frame": "stone",
+            "roof": "fiber",
+            "bracing": false,
+            "raised_foundation": true
+          },
+          "contributors": {
+            "agent-02": 1,
+            "agent-01": 28,
+            "agent-00": 1,
+            "agent-09": 1,
+            "agent-04": 8,
+            "agent-07": 1
+          }
+        }
+      ],
+      "contributions": {
+        "agent-07": {
+          "construction": 4,
+          "materials": 11
+        },
+        "agent-02": {
+          "materials": 4,
+          "food_supply": 1,
+          "farming": 1
+        },
+        "agent-01": {
+          "materials": 45,
+          "maintenance": 1,
+          "farming": 1
+        },
+        "agent-00": {
+          "materials": 5,
+          "maintenance": 1
+        },
+        "agent-09": {
+          "materials": 1,
+          "farming": 1
+        },
+        "agent-04": {
+          "materials": 22
+        },
+        "agent-05": {
+          "materials": 4
+        }
+      },
+      "meals_given": 0,
+      "repairs": 0,
+      "projects_completed": 0
+    },
+    "project_events": [],
+    "farm_yield": 16,
+    "replay_matches": true
+  },
+  {
+    "seed": 19,
+    "ticks": 240,
+    "policy": "UtilityPolicy (no model calls)",
+    "alive": 10,
+    "actions": {
+      "MOVE": 1233,
+      "EXPERIMENT": 48,
+      "EXPERIMENT_TOOL": 162,
+      "GATHER": 254,
+      "PROPOSE_PROJECT": 1,
+      "WITHDRAW": 99,
+      "BUILD": 4,
+      "STORE": 110,
+      "REST": 388,
+      "EAT": 31,
+      "REFUEL": 2,
+      "SOCIALIZE": 29
+    },
+    "community": {
+      "projects": [
+        {
+          "id": "project:settlement-0:7",
+          "kind": "shelter",
+          "target": {
+            "x": 0,
+            "y": -2
+          },
+          "proposer_id": "agent-08",
+          "created_tick": 7,
+          "deadline": 967,
+          "status": "active",
+          "cost": {
+            "fiber": 3,
+            "stone": 8
+          },
+          "design": {
+            "frame": "stone",
+            "roof": "fiber",
+            "bracing": false,
+            "raised_foundation": true
+          },
+          "contributors": {
+            "agent-00": 9,
+            "agent-03": 6,
+            "agent-04": 74,
+            "agent-06": 7,
+            "agent-07": 2,
+            "agent-08": 1,
+            "agent-09": 1
+          }
+        }
+      ],
+      "contributions": {
+        "agent-09": {
+          "construction": 4,
+          "materials": 8
+        },
+        "agent-00": {
+          "materials": 24
+        },
+        "agent-03": {
+          "materials": 26
+        },
+        "agent-04": {
+          "materials": 290,
+          "maintenance": 1
+        },
+        "agent-06": {
+          "materials": 25,
+          "maintenance": 1
+        },
+        "agent-07": {
+          "materials": 13,
+          "farming": 1
+        },
+        "agent-08": {
+          "materials": 12
+        }
+      },
+      "meals_given": 0,
+      "repairs": 0,
+      "projects_completed": 0
+    },
+    "project_events": [],
+    "farm_yield": 12,
+    "replay_matches": true
+  }
+]

@@ -2,10 +2,12 @@ import asyncio
 import contextlib
 import fcntl
 import json
+import logging
 from collections import deque
 from pathlib import Path
 
 from app.simulation.chunks.access import ChunkCache, WorldAccess
+from app.simulation.cognition.runtime import CognitionPolicy, Settings
 from app.simulation.engine.core import Engine
 from app.simulation.events.reducer import authoritative_state, state_hash
 from app.simulation.models.domain import WorldConfig
@@ -13,6 +15,8 @@ from app.simulation.persistence.sqlite import EventStore
 from app.simulation.policies.rules import RulePolicy
 from app.simulation.policies.utility import UtilityPolicy
 from app.simulation.settlements.environment import conditions
+
+logger = logging.getLogger(__name__)
 
 
 class SimulationService:
@@ -37,10 +41,15 @@ class SimulationService:
             self.engine.policy = UtilityPolicy(
                 self.engine.world.config.utility_weights.model_dump()
             )
+        self.cognition = None
+        if self.engine.world.config.infinite:
+            self.cognition = CognitionPolicy(self.engine.policy, Settings.from_env())
+            self.cognition.reset(self.engine.run_id)
+            self.engine.policy = self.cognition
         self.visual_cache = ChunkCache(
             self.engine.world.config.seed, self.engine.world.config.generator_version, 64
         )
-        self.commands = asyncio.Queue()
+        self.commands = asyncio.Queue(maxsize=256)
         self.subscribers: set[asyncio.Queue] = set()
         self.recent = deque(maxlen=250)
         # Only display human-facing events; authoritative reducer events remain in SQLite.
@@ -52,6 +61,7 @@ class SimulationService:
         if rows:
             self.remember(self.store.events(self.engine.run_id, min(r[0] for r in rows) - 1))
         self.task: asyncio.Task | None = None
+        self.failure: str | None = None
 
     @staticmethod
     def readable_event(event):
@@ -59,7 +69,7 @@ class SimulationService:
         data["payload"] = {
             key: value
             for key, value in data["payload"].items()
-            if key in ("message", "action", "goal", "factors")
+            if key in ("message", "action", "goal", "factors", "peer_id")
         }
         return data
 
@@ -91,6 +101,7 @@ class SimulationService:
             "events": [self.readable_event(e) for e in new_events if "message" in e.payload]
             if new_events is not None
             else (list(self.recent)[-40:] if update else list(self.recent)),
+            "events_after": new_events[0].sequence_number - 1 if new_events else None,
         }
         message["metrics"]["payload_bytes"] = len(json.dumps(message, separators=(",", ":")))
         return message
@@ -144,7 +155,10 @@ class SimulationService:
         if self.task is None or self.task.done():
             raise RuntimeError("Simulation writer is unavailable")
         future = asyncio.get_running_loop().create_future()
-        await self.commands.put((name, value, future))
+        try:
+            self.commands.put_nowait((name, value, future))
+        except asyncio.QueueFull:
+            raise RuntimeError("Simulation command queue is full") from None
         done, _ = await asyncio.wait((future, self.task), return_when=asyncio.FIRST_COMPLETED)
         if future in done:
             return future.result()
@@ -152,30 +166,53 @@ class SimulationService:
         raise RuntimeError("Simulation writer stopped before processing the command")
 
     async def run(self):
+        try:
+            await self._run()
+        except Exception as exc:
+            self.failure = type(exc).__name__
+            logger.exception("Simulation writer stopped; the last committed world is retained")
+
+    async def _run(self):
+        loop = asyncio.get_running_loop()
+        next_tick_at = None
         while True:
-            timeout = (
-                0.5 / self.engine.world.speed if self.engine.world.status == "running" else None
-            )
+            running = self.engine.world.status == "running"
+            interval = 0.5 / self.engine.world.speed
+            if running and next_tick_at is None:
+                next_tick_at = loop.time() + interval
+            elif not running:
+                next_tick_at = None
+            timeout = max(0, next_tick_at - loop.time()) if next_tick_at is not None else None
+            if timeout == 0:
+                self.publish(self.engine.tick())
+                # Skip missed wall-clock deadlines rather than burst through overdue ticks.
+                next_tick_at += interval
+                if next_tick_at <= loop.time():
+                    next_tick_at = loop.time() + interval
+                await asyncio.sleep(0)
+                continue
             try:
                 name, value, future = await asyncio.wait_for(self.commands.get(), timeout=timeout)
             except TimeoutError:
                 self.publish(self.engine.tick())
+                next_tick_at += interval
+                if next_tick_at <= loop.time():
+                    next_tick_at = loop.time() + interval
                 continue
             try:
                 if name == "reset":
                     config = self.engine.world.config.model_copy(update={"seed": value})
-                    events = self.engine.reset(config)
-                    events += [
-                        self.engine.event(
-                            "COMMAND_ACCEPTED",
-                            {"command": "reset", "seed": value, "message": "Simulation: reset"},
-                        )
-                    ]
-                    self.store.append(events[-1:])
+                    events = self.engine.reset(config, record_command=True)
+                    if self.cognition:
+                        self.cognition.reset(self.engine.run_id)
                     self.recent.clear()
                     self.visual_cache = ChunkCache(config.seed, config.generator_version, 64)
                 else:
+                    previous_speed = self.engine.world.speed
                     events = self.engine.command(name, value)
+                    if name == "speed" and previous_speed != self.engine.world.speed:
+                        deadline = loop.time() + 0.5 / self.engine.world.speed
+                        next_tick_at = min(next_tick_at, deadline) if next_tick_at else deadline
                 self.publish(events)
                 if not future.done():
                     future.set_result(self.snapshot())
@@ -191,8 +228,10 @@ class SimulationService:
     async def close(self):
         if self.task:
             self.task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self.task
+        if self.cognition:
+            await self.cognition.close()
         self.store.close()
         if self.file_lock:
             self.file_lock.close()

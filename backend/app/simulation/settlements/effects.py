@@ -23,32 +23,44 @@ TOOL_COSTS = {
 }
 
 
+def building_usable(building) -> bool:
+    """Shared operational state for model objects and copied observation records."""
+    if isinstance(building, dict):
+        return building["progress"] == 100 and building["durability"] > 0
+    return building.progress == 100 and building.durability > 0
+
+
 def local_effects(
     world: WorldState, position: Position, index: SpatialIndex | None = None
 ) -> dict[str, float]:
     env = conditions(world.config.seed, world.tick)
     warmth, comfort, protection, visibility = 0.0, 0.0, 0.0, 8.0
     for b in world.buildings.values():
-        if b.progress < 100 or b.durability <= 0:
+        if not building_usable(b):
             continue
         distance = b.position.distance(position)
         if b.kind == "campfire" and b.fuel > 0 and distance <= 5:
             warmth = max(warmth, (1 - distance / 6) * 0.85)
             protection += 0.18 * (1 - distance / 6)
+        if b.assembly and distance <= 2:
+            measured = b.assembly.measured
+            comfort = max(comfort, measured.get("shelter", 0) * b.durability / 100)
+            protection += measured.get("shelter", 0) * 0.2 * b.durability / 100
         if b.kind in ("shelter", "remote_camp") and distance <= 2:
-            comfort = max(comfort, 0.85 if b.kind == "shelter" else 0.6)
-            warmth = max(warmth, 0.7)
-            protection += 0.25
+            condition = b.quality * b.durability / 100
+            comfort = max(comfort, (0.85 if b.kind == "shelter" else 0.6) * condition)
+            warmth = max(warmth, 0.7 * condition)
+            protection += 0.25 * condition
         if b.kind in ("wooden_wall", "stone_wall") and distance <= 3:
             protection += 0.035 if b.kind == "wooden_wall" else 0.06
         if b.kind == "watchtower" and distance <= 10:
             visibility = 12
             protection += 0.16 * (1 - distance / 11)
     peers = [a for a in (index or SpatialIndex(world)).nearby(position, 5)]
+    from app.simulation.engineering.invention import best_tool
+
     torch_bearers = [
-        a
-        for a in peers
-        if a.inventory.tools.get("torch", 0) > 0 and a.position.distance(position) <= 3
+        a for a in peers if a.position.distance(position) <= 3 and best_tool(a, "light")[1] >= 0.3
     ]
     if torch_bearers:
         warmth = max(warmth, 0.2)
@@ -71,7 +83,7 @@ def local_effects(
 def settlement_tick(world: WorldState, access) -> None:
     next_tick = world.tick + 1
     for b in world.buildings.values():
-        if b.progress < 100 or b.durability <= 0:
+        if not building_usable(b):
             continue
         if b.kind == "campfire" and next_tick % 12 == 0:
             b.fuel = max(0, b.fuel - 1)
@@ -100,12 +112,14 @@ def settlement_tick(world: WorldState, access) -> None:
         buildings = [
             world.buildings[k]
             for k in s.buildings
-            if k in world.buildings
-            and world.buildings[k].progress == 100
-            and world.buildings[k].durability > 0
+            if k in world.buildings and building_usable(world.buildings[k])
         ]
         s.food_reserves = s.storage.food
-        s.storage.capacity = 80 + sum(b.kind == "storage" for b in buildings) * 80
+        s.storage.capacity = (
+            80
+            + sum(b.kind == "storage" for b in buildings) * 80
+            + sum(int(b.assembly.measured.get("storage", 0) * 24) for b in buildings if b.assembly)
+        )
         s.influence = round(6 + math.sqrt(len(buildings)) * 2 + s.social_cohesion * 3, 2)
         if members:
             s.social_cohesion = clamp(
@@ -114,7 +128,7 @@ def settlement_tick(world: WorldState, access) -> None:
         s.safety = local_effects(world, s.center, index)["safety"]
         shelters = sum(b.kind in ("shelter", "remote_camp") for b in buildings)
         s.comfort = clamp(shelters * 2 / max(1, len(members)))
-        _, resources = access.visible(s.center, 12)
+        resources = access.visible_resources(s.center, 12)
         s.resource_availability = clamp(
             sum(r.quantity for r in resources if r.kind in ("food", "wood", "stone")) / 200
         )

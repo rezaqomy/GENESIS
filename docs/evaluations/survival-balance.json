@@ -1,0 +1,258 @@
+[
+  {
+    "seed": 42,
+    "ticks": 2400,
+    "days": [
+      {
+        "day": 1,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 2,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 3,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 4,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 5,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 6,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 7,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 8,
+        "alive": 9,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 9,
+        "alive": 9,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 10,
+        "alive": 8,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      }
+    ],
+    "deaths": [
+      {
+        "tick": 1872,
+        "agent": "agent-07",
+        "message": "Theo died (starvation)"
+      },
+      {
+        "tick": 2360,
+        "agent": "agent-09",
+        "message": "Ezra died (starvation)"
+      }
+    ],
+    "actions": {
+      "MOVE": 17627,
+      "EXPERIMENT": 406,
+      "WITHDRAW": 39,
+      "BUILD": 16,
+      "IDLE": 346,
+      "EAT": 183,
+      "GATHER": 614,
+      "REST": 3891,
+      "STORE": 53,
+      "REFUEL": 8,
+      "SOCIALIZE": 209
+    },
+    "goals": {
+      "experiment_shelter": 1299,
+      "take_shared_food": 116,
+      "build_shelter": 20,
+      "gather_resources": 3074,
+      "eat": 183,
+      "find_food": 8288,
+      "seek_safety": 1823,
+      "rest": 3891,
+      "explore": 2603,
+      "return_home": 580,
+      "store_resources": 342,
+      "socialize": 737,
+      "refuel": 73,
+      "take_materials": 170,
+      "improve_settlement": 55,
+      "observe": 138
+    },
+    "visited_tiles_per_agent": {
+      "agent-00": 194,
+      "agent-01": 346,
+      "agent-02": 233,
+      "agent-03": 326,
+      "agent-04": 271,
+      "agent-05": 197,
+      "agent-06": 314,
+      "agent-07": 146,
+      "agent-08": 218,
+      "agent-09": 152
+    },
+    "replay_matches": true,
+    "policy_revision": "slower_metabolism_and_provisions_before_route_loop_fix",
+    "initial_tick": 0
+  },
+  {
+    "seed": 7,
+    "ticks": 2400,
+    "days": [
+      {
+        "day": 1,
+        "alive": 10,
+        "food": 0,
+        "water": 0,
+        "farm_yield": 0
+      },
+      {
+        "day": 2,
+        "alive": 10,
+        "food": 0,
+        "water": 0,
+        "farm_yield": 0
+      },
+      {
+        "day": 3,
+        "alive": 10,
+        "food": 0,
+        "water": 0,
+        "farm_yield": 0
+      },
+      {
+        "day": 4,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 5,
+        "alive": 10,
+        "food": 1,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 6,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 7,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 8,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 9,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 10,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      }
+    ],
+    "deaths": [],
+    "actions": {
+      "MOVE": 18898,
+      "EXPERIMENT": 51,
+      "WITHDRAW": 71,
+      "GATHER": 451,
+      "REST": 4107,
+      "STORE": 127,
+      "EAT": 183,
+      "SOCIALIZE": 23,
+      "REFUEL": 8,
+      "BUILD": 20,
+      "IDLE": 23
+    },
+    "goals": {
+      "experiment_shelter": 133,
+      "take_shared_food": 169,
+      "find_food": 6596,
+      "take_materials": 58,
+      "gather_resources": 1273,
+      "store_resources": 1109,
+      "explore": 4265,
+      "rest": 4107,
+      "seek_safety": 3816,
+      "eat": 183,
+      "return_home": 1266,
+      "socialize": 341,
+      "refuel": 52,
+      "build_shelter": 15,
+      "improve_settlement": 579
+    },
+    "visited_tiles_per_agent": {
+      "agent-00": 387,
+      "agent-01": 379,
+      "agent-02": 455,
+      "agent-03": 450,
+      "agent-04": 424,
+      "agent-05": 470,
+      "agent-06": 257,
+      "agent-07": 360,
+      "agent-08": 451,
+      "agent-09": 438
+    },
+    "replay_matches": true,
+    "policy_revision": "slower_metabolism_and_provisions_before_route_loop_fix",
+    "initial_tick": 0
+  }
+]

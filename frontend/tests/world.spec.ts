@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import type { Snapshot } from '../src/types/world'
 
 test('living world, controls, selection, camera, synchronization and replay', async ({ page, request, context }) => {
+  test.setTimeout(300000)
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   await request.post('/api/simulation/reset', { data: { seed: 42 } })
@@ -27,6 +28,12 @@ test('living world, controls, selection, camera, synchronization and replay', as
   await page.getByRole('button', { name: 'Inspect Ada' }).click()
   await expect(page.locator('.agent-profile h2')).toHaveText('Ada')
   await expect(page.getByText('Higher hunger means closer to starvation.')).toBeVisible()
+  await page.getByRole('button', {name:'Vision',exact:true}).click()
+  const perception = await (await request.get('/api/agents/agent-00/observation')).json()
+  await expect(page.getByRole('heading', {name:`Local vision · ${perception.observation.vision_radius} tiles`})).toBeVisible()
+  await expect(page.locator('.inspector-content')).toContainText('Visible terrain')
+  await expect(page.locator('.inspector-content')).toContainText('Visible resources')
+  await page.getByRole('button', {name:'Overview',exact:true}).click()
   await page.getByRole('button', { name: 'Clear selection' }).click()
   await page.getByRole('button', { name: '⛶ Fit world' }).click()
   await page.waitForTimeout(300)
@@ -58,8 +65,8 @@ test('living world, controls, selection, camera, synchronization and replay', as
   await expect(page.getByText('Reconnecting…')).toBeVisible()
   await context.setOffline(false)
   await expect(page.getByText('Connected to simulation')).toBeVisible({ timeout: 10000 })
-  // Drive real policies far enough to observe all survival behavior, independent of pacing.
-  for (let i = before.state.tick; i < 110; i++) {
+  // Observe a full simulation day with the slower hunger clock and real survival policies.
+  for (let i = before.state.tick; i < 240; i++) {
     const response = await request.post('/api/simulation/step')
     expect(response.ok()).toBeTruthy()
   }
@@ -76,10 +83,49 @@ test('living world, controls, selection, camera, synchronization and replay', as
   expect([...actions]).toEqual(expect.arrayContaining(['MOVE','GATHER','EAT','REST']))
   const replay = await (await request.get(`/api/replay/${final.run_id}`)).json()
   expect(replay.state_hash).toBe(final.state_hash)
+  await page.getByRole('button', {name:'Memory',exact:true}).click()
+  await expect(page.getByRole('heading', {name:/Short-term memory/})).toBeVisible()
+  await expect(page.getByRole('heading', {name:/Long-term memory/})).toBeVisible()
+  await expect(page.getByRole('heading', {name:'Practical lessons'})).toBeVisible()
+  const memory=final.state.agents['agent-00'].memory
+  expect(memory?.short_term.length).toBeGreaterThan(0)
+  expect(memory?.long_term.length).toBeGreaterThan(0)
+  expect(Object.keys(memory?.lessons??{}).length).toBeGreaterThan(0)
+  await page.screenshot({path:'../artifacts/genesis-memory.png',fullPage:true})
+  await page.getByRole('button', {name:'Plans',exact:true}).click()
+  await expect(page.getByRole('heading', {name:'Current plan'})).toBeVisible()
+  await expect(page.getByRole('heading', {name:'Verified strategies'})).toBeVisible()
+  await expect(page.getByRole('heading', {name:'Plan outcomes'})).toBeVisible()
+  const planner = Object.values(final.state.agents).find(a=>Object.keys(a.skills??{}).length>0 && (a.task_history?.length??0)>0)
+  expect(planner).toBeDefined()
+  if (!planner) throw new Error('No agent verified a strategy')
+  await page.getByRole('button', {name:`Inspect ${planner.name}`,exact:true}).click()
+  await expect(page.locator('.inspector-content')).toContainText('successes')
+  await expect(page.locator('.inspector-content .recent-activity')).toContainText('succeeded')
+  const engineer = Object.values(final.state.agents).find(a=>(a.housing?.trials.length??0)>0)
+  expect(engineer).toBeDefined()
+  if (!engineer) throw new Error('No agent completed a shelter trial')
+  await page.getByRole('button', {name:`Inspect ${engineer.name}`,exact:true}).click()
+  await page.getByRole('button', {name:'Building',exact:true}).click()
+  await expect(page.getByRole('heading', {name:'Construction learning'})).toBeVisible()
+  await expect(page.getByRole('heading', {name:'Invention workshop'})).toBeVisible()
+  await expect(page.getByRole('heading', {name:'Recent tool evidence'})).toBeVisible()
+  await expect(page.getByRole('heading', {name:'Tested designs'})).toBeVisible()
+  await expect(page.locator('.inspector-content')).toContainText(/Prototype stood|Prototype failed/)
+  await page.screenshot({path:'../artifacts/genesis-construction-learning.png',fullPage:true})
+  await page.getByRole('button', {name:'Plans',exact:true}).click()
+  await page.screenshot({path:'../artifacts/genesis-plans.png',fullPage:true})
+  await page.getByRole('button', {name:'Overview',exact:true}).click()
   await page.getByLabel('Filter event type').selectOption('GATHER')
   await expect(page.locator('.event-row').first()).toContainText('gathered')
-  await page.getByLabel('Filter agent').selectOption('agent-00')
-  await expect(page.locator('.event-row').first()).toContainText('Ada')
+  // Different agents can spend the day inventing, building or gathering.
+  // Filter a gatherer actually present in the journal rather than prescribing Ada's role.
+  const gatheringText = await page.locator('.event-row').first().innerText()
+  const gatherer = Object.values(final.state.agents).find(a=>gatheringText.includes(`${a.name} gathered`))
+  expect(gatherer).toBeDefined()
+  if (!gatherer) throw new Error('No visible gatherer in the journal')
+  await page.getByLabel('Filter agent').selectOption(gatherer.id)
+  await expect(page.locator('.event-row').first()).toContainText(`${gatherer.name} gathered`)
   await page.getByLabel('Filter event type').selectOption('all')
   await page.getByLabel('Filter agent').selectOption('all')
   await page.screenshot({ path: '../artifacts/genesis-desktop.png', fullPage: true })

@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -28,6 +28,26 @@ class Terrain(StrEnum):
 
 
 class Action(StrEnum):
+    TILL = "TILL"
+    PLANT = "PLANT"
+    WATER_CROP = "WATER_CROP"
+    HARVEST = "HARVEST"
+    FEED = "FEED"
+    BREED = "BREED"
+    COLLECT = "COLLECT"
+    ATTACK = "ATTACK"
+    STEAL = "STEAL"
+    PICK_UP = "PICK_UP"
+    EXPERIMENT_ASSEMBLY = "EXPERIMENT_ASSEMBLY"
+    ASSEMBLE = "ASSEMBLE"
+    OPERATE = "OPERATE"
+    HEAT = "HEAT"
+    DISMANTLE = "DISMANTLE"
+    OFFER_TRADE = "OFFER_TRADE"
+    ACCEPT_TRADE = "ACCEPT_TRADE"
+    DIG = "DIG"
+    MINE = "MINE"
+    PLACE_BLOCK = "PLACE_BLOCK"
     MOVE = "MOVE"
     GATHER = "GATHER"
     EAT = "EAT"
@@ -39,6 +59,12 @@ class Action(StrEnum):
     CRAFT = "CRAFT"
     BUILD = "BUILD"
     REFUEL = "REFUEL"
+    EXPERIMENT = "EXPERIMENT"
+    EXPERIMENT_TOOL = "EXPERIMENT_TOOL"
+    DISCARD = "DISCARD"
+    GIVE = "GIVE"
+    REPAIR = "REPAIR"
+    PROPOSE_PROJECT = "PROPOSE_PROJECT"
 
 
 class Tile(Model):
@@ -68,13 +94,16 @@ class Inventory(Model):
     fuel: int = Field(default=0, ge=0)
     water: int = Field(default=0, ge=0)
     seeds: int = Field(default=0, ge=0)
+    products: dict[str, Annotated[int, Field(ge=0)]] = Field(default_factory=dict)
     tools: dict[str, int] = Field(default_factory=dict)
     capacity: int = Field(default=8, gt=0)
 
     @property
     def total(self) -> int:
-        return sum(getattr(self, key) for key in RESOURCE_KINDS) + sum(
-            v > 0 for v in self.tools.values()
+        return (
+            sum(getattr(self, key) for key in RESOURCE_KINDS)
+            + sum(self.products.values())
+            + sum(v > 0 for v in self.tools.values())
         )
 
 
@@ -124,7 +153,210 @@ class Decision(Model):
     failures: int = 0
 
 
+class Episode(Model):
+    tick: int = Field(ge=0)
+    kind: str
+    text: str = Field(max_length=500)
+    goal: str = ""
+    outcome: float = Field(default=0, ge=-1, le=1)
+    peer_id: str | None = None
+
+
+class MemoryRecord(Model):
+    id: str
+    tick: int = Field(ge=0)
+    kind: Literal["action", "failure", "dialogue", "reflection"]
+    text: str = Field(max_length=500)
+    goal: str = ""
+    action: str = ""
+    context: str = ""
+    outcome: float = Field(default=0, ge=-1, le=1)
+    importance: float = Field(default=0, ge=0, le=1)
+    position: Position
+    target: Position | None = None
+    peer_id: str | None = None
+
+
+class ResourceFact(Model):
+    resource_id: str
+    position: Position
+    quantity: int = Field(ge=0)
+    observed_tick: int = Field(ge=0)
+
+
+class PracticalLesson(Model):
+    goal: str
+    action: str
+    context: str
+    samples: int = Field(default=0, ge=0)
+    mean_outcome: float = Field(default=0, ge=-1, le=1)
+    updated_tick: int = Field(ge=0)
+
+
+class AgentMemory(Model):
+    short_term: list[MemoryRecord] = Field(default_factory=list, max_length=24)
+    long_term: list[MemoryRecord] = Field(default_factory=list, max_length=64)
+    facts: dict[str, ResourceFact] = Field(default_factory=dict, max_length=64)
+    lessons: dict[str, PracticalLesson] = Field(default_factory=dict, max_length=32)
+    recalled_ids: list[str] = Field(default_factory=list, max_length=6)
+
+
+class TaskPlan(Model):
+    id: str
+    kind: Literal["forage", "construction", "expedition"]
+    context: str
+    stage: str
+    status: Literal["active", "succeeded", "failed", "cancelled"] = "active"
+    started_tick: int = Field(ge=0)
+    last_progress_tick: int = Field(ge=0)
+    deadline: int = Field(ge=0)
+    origin: Position
+    target: Position | None = None
+    building_kind: str | None = None
+    initial_food: int = 0
+    initial_hunger: int = 0
+    discoveries: int = Field(default=0, ge=0)
+    best_distance: int | None = None
+    actions: int = Field(default=0, ge=0)
+    moves: int = Field(default=0, ge=0)
+    exploration_moves: int = Field(default=0, ge=0)
+    work_units: int = Field(default=0, ge=0)
+    energy_spent: int = Field(default=0, ge=0)
+    max_home_distance: int = Field(default=0, ge=0)
+    reason: str = Field(default="", max_length=160)
+
+
+class TaskOutcome(Model):
+    id: str
+    kind: str
+    status: Literal["succeeded", "failed", "cancelled"]
+    reason: str
+    started_tick: int
+    ended_tick: int
+    actions: int
+    energy_spent: int
+    food_delta: int
+    hunger_delta: int
+    discoveries: int
+
+
+class VerifiedSkill(Model):
+    kind: str
+    context: str
+    stages: list[str] = Field(max_length=4)
+    successes: int = Field(default=0, ge=0)
+    failures: int = Field(default=0, ge=0)
+    mean_ticks: float = Field(default=0, ge=0)
+    updated_tick: int
+
+
+class ShelterDesign(Model):
+    frame: Literal["wood", "stone"] = "wood"
+    roof: Literal["fiber", "wood"] = "fiber"
+    bracing: bool = False
+    raised_foundation: bool = False
+
+
+class DesignTrial(Model):
+    design: ShelterDesign
+    tick: int
+    score: float = Field(ge=0, le=1)
+    stood: bool
+    source: Literal["experiment", "study"] = "experiment"
+
+
+class HousingKnowledge(Model):
+    trials: list[DesignTrial] = Field(default_factory=list, max_length=12)
+    practice: int = Field(default=0, ge=0)
+    experiment: ShelterDesign | None = None
+    experiment_steps: int = Field(default=0, ge=0, le=3)
+    studying_id: str | None = None
+    insights: list[str] = Field(default_factory=list, max_length=4)
+    observed_failures: dict[str, int] = Field(default_factory=dict, max_length=32)
+
+
+class ToolDesign(Model):
+    """Physical choices, not a named recipe; one object can serve several purposes."""
+
+    core: Literal["wood", "stone", "fiber", "clay", "ore"]
+    grip: Literal["none", "wood", "stone", "fiber"] = "wood"
+    binding: Literal["none", "fiber", "clay"] = "none"
+    form: Literal["rounded", "edge", "point", "wrapped"] = "rounded"
+    length: int = Field(default=1, ge=1, le=3)
+    fueled: bool = False
+
+
+class ToolTrial(Model):
+    design: ToolDesign
+    tick: int
+    performance: dict[Literal["cut", "mine", "light"], float]
+    feedback: list[str] = Field(max_length=5)
+    source: Literal["experiment", "study", "craft"] = "experiment"
+
+
+class ToolKnowledge(Model):
+    trials: list[ToolTrial] = Field(default_factory=list, max_length=32)
+    designs: dict[str, ToolTrial] = Field(default_factory=dict, max_length=24)
+    practice: int = Field(default=0, ge=0)
+    experiment: ToolDesign | None = None
+    experiment_steps: int = Field(default=0, ge=0, le=3)
+    studying_peer: str | None = None
+
+
+class AssemblyPart(Model):
+    material: Literal["wood", "stone", "fiber", "clay", "ore", "metal", "ceramic"]
+    shape: Literal["plate", "rod", "bowl", "mesh", "wheel", "blade"]
+    count: int = Field(default=1, ge=1, le=3)
+
+
+class AssemblyDesign(Model):
+    name: str = Field(default="unnamed assembly", min_length=1, max_length=60)
+    parts: list[AssemblyPart] = Field(min_length=1, max_length=6)
+    joint: Literal["loose", "fiber", "clay", "fitted"] = "loose"
+    mechanism: Literal["passive", "lever", "rotary", "combustion"] = "passive"
+    enclosed: bool = False
+
+
+class AssemblyTrial(Model):
+    design: AssemblyDesign
+    tick: int
+    measured: dict[
+        Literal["catch", "water", "heat", "cultivate", "shelter", "storage"],
+        Annotated[float, Field(ge=0, le=1)],
+    ] = Field(min_length=6, max_length=6)
+    feedback: list[str] = Field(max_length=6)
+    source: Literal["experiment", "study"] = "experiment"
+
+
+class TradeOffer(Model):
+    id: str
+    peer_id: str
+    give_item: str = Field(max_length=40)
+    give_amount: int = Field(default=1, ge=1, le=4)
+    want_item: str = Field(max_length=40)
+    want_amount: int = Field(default=1, ge=1, le=4)
+    expires: int
+
+
+class WorkshopKnowledge(Model):
+    planned: AssemblyDesign | None = None
+    trials: list[AssemblyTrial] = Field(default_factory=list, max_length=24)
+    proposals: list[AssemblyDesign] = Field(default_factory=list, max_length=4)
+    experiment: AssemblyDesign | None = None
+    steps: int = Field(default=0, ge=0, le=2)
+    transformations: dict[str, str] = Field(default_factory=dict, max_length=16)
+    offer: TradeOffer | None = None
+
+
+class CombatState(Model):
+    last_attack_tick: int = -1000
+    attacker_id: str | None = None
+    attacked_tick: int = -1000
+    death_cause: str = ""
+
+
 class Agent(Model):
+    combat: CombatState | None = None
     id: str
     name: str
     age: int
@@ -134,6 +366,10 @@ class Agent(Model):
     energy: int = Field(default=100, ge=0, le=100)
     position: Position
     inventory: Inventory = Field(default_factory=Inventory)
+    vision_radius: int = Field(default=8, ge=1, le=12)
+    housing: HousingKnowledge | None = None
+    workshop: WorkshopKnowledge | None = None
+    inventions: ToolKnowledge | None = None
     destination: Position | None = None
     current_action: Action = Action.IDLE
     alive: bool = True
@@ -154,6 +390,14 @@ class Agent(Model):
     lifestyle: Literal["settler", "wanderer"] = "settler"
     nearby_agents: list[str] = Field(default_factory=list)
     relationships: dict[str, float] = Field(default_factory=dict)
+    memories: list[Episode] = Field(default_factory=list, max_length=48)
+    memory: AgentMemory | None = None
+    task: TaskPlan | None = None
+    task_history: list[TaskOutcome] = Field(default_factory=list, max_length=8)
+    skills: dict[str, VerifiedSkill] = Field(default_factory=dict, max_length=8)
+    habits: dict[str, float] = Field(default_factory=dict)
+    cognition_source: str = "utility"
+    thought: str = ""
 
 
 class UtilityWeights(Model):
@@ -199,6 +443,7 @@ class Chunk(Model):
 class Building(Model):
     id: str
     kind: Literal[
+        "assembly",
         "campfire",
         "shelter",
         "storage",
@@ -219,6 +464,36 @@ class Building(Model):
     fuel: int = Field(default=0, ge=0, le=100)
     food: int = Field(default=0, ge=0)
     created_tick: int = 0
+    design: ShelterDesign | None = None
+    quality: float = Field(default=1, ge=0, le=1)
+    work_units: int = Field(default=0, ge=0)
+    contributors: list[str] = Field(default_factory=list, max_length=30)
+    assembly: AssemblyTrial | None = None
+    last_operated_tick: int = -1000
+    salvaged: bool = False
+    last_damage_cause: str = ""
+    last_damage_tick: int = 0
+
+
+class CommunityProject(Model):
+    id: str
+    kind: str
+    target: Position
+    proposer_id: str
+    created_tick: int
+    deadline: int
+    status: Literal["active", "completed", "expired"] = "active"
+    cost: dict[str, int] = Field(default_factory=dict)
+    design: ShelterDesign | None = None
+    contributors: dict[str, int] = Field(default_factory=dict)
+
+
+class CommunityState(Model):
+    projects: list[CommunityProject] = Field(default_factory=list, max_length=6)
+    contributions: dict[str, dict[str, int]] = Field(default_factory=dict, max_length=30)
+    meals_given: int = 0
+    repairs: int = 0
+    projects_completed: int = 0
 
 
 class Settlement(Model):
@@ -236,9 +511,53 @@ class Settlement(Model):
     influence: float = Field(default=6, ge=0)
     crowding: float = Field(default=0, ge=0, le=1)
     exploration_activity: int = 0
+    community: CommunityState | None = None
+
+
+class Crop(Model):
+    id: str
+    position: Position
+    owner_id: str
+    planted_tick: int
+    growth: int = Field(default=0, ge=0, le=80)
+    moisture: int = Field(default=60, ge=0, le=100)
+    health: int = Field(default=100, ge=0, le=100)
+
+
+class Animal(Model):
+    id: str
+    species: Literal["sheep", "cow", "chicken"]
+    position: Position
+    born_tick: int
+    health: int = Field(default=40, ge=0, le=40)
+    hunger: int = Field(default=20, ge=0, le=100)
+    owner_id: str | None = None
+    tamer_id: str | None = None
+    trust: int = Field(default=0, ge=0, le=3)
+    ready_until: int = -1
+    breed_after: int = 0
+    produce_after: int = 0
+    frightened_until: int = 0
+
+
+class DroppedItems(Model):
+    id: str
+    position: Position
+    inventory: Inventory
+    expires: int
+    owner_id: str | None = None
+
+
+class Ecosystem(Model):
+    animals: dict[str, Animal] = Field(default_factory=dict, max_length=96)
+    crops: dict[str, Crop] = Field(default_factory=dict, max_length=128)
+    drops: dict[str, DroppedItems] = Field(default_factory=dict, max_length=256)
+    habitats: list[str] = Field(default_factory=list, max_length=256)
+    released_agents: list[str] = Field(default_factory=list, max_length=30)
 
 
 class WorldState(Model):
+    ecosystem: Ecosystem | None = None
     config: WorldConfig
     tick: int = 0
     status: Literal["running", "paused"] = "paused"
@@ -254,13 +573,27 @@ class WorldState(Model):
 
 
 class AgentIntent(Model):
+    entity_id: str | None = Field(default=None, max_length=100)
     actor_id: str
     action: Action
     target: Position | None = None
     resource_id: str | None = None
     destination: Position | None = None
     decision: Decision | None = None
+    recalled_ids: list[str] = Field(default_factory=list, max_length=6)
+    task: TaskPlan | None = None
+    navigation_note: str = Field(default="", max_length=160)
     item: str | None = None
     amount: int = Field(default=1, ge=1, le=8)
     building_kind: str | None = None
     building_id: str | None = None
+    design: ShelterDesign | None = None
+    assembly_design: AssemblyDesign | None = None
+    idea: AssemblyDesign | None = None
+    trade: TradeOffer | None = None
+    tool_design: ToolDesign | None = None
+    cognition_source: str = "utility"
+    thought: str = Field(default="", max_length=300)
+    observation_tick: int | None = None
+    peer_id: str | None = None
+    utterance: str | None = Field(default=None, max_length=500)

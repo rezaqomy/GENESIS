@@ -1,0 +1,71 @@
+[
+  {
+    "seed": 42,
+    "initial_tick": 1700,
+    "ticks": 2400,
+    "days": [
+      {
+        "day": 8,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 9,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      },
+      {
+        "day": 10,
+        "alive": 10,
+        "food": 0,
+        "water": 6,
+        "farm_yield": 0
+      }
+    ],
+    "deaths": [],
+    "actions": {
+      "MOVE": 5305,
+      "IDLE": 10,
+      "REST": 1221,
+      "GATHER": 176,
+      "SOCIALIZE": 119,
+      "EAT": 94,
+      "EXPERIMENT": 42,
+      "STORE": 11,
+      "WITHDRAW": 3
+    },
+    "goals": {
+      "find_food": 2982,
+      "observe": 9,
+      "rest": 1221,
+      "gather_resources": 425,
+      "explore": 640,
+      "seek_safety": 579,
+      "socialize": 335,
+      "eat": 94,
+      "return_home": 459,
+      "store_resources": 110,
+      "experiment_shelter": 107,
+      "take_materials": 20
+    },
+    "visited_tiles_per_agent": {
+      "agent-00": 169,
+      "agent-01": 194,
+      "agent-02": 167,
+      "agent-03": 182,
+      "agent-04": 172,
+      "agent-05": 263,
+      "agent-06": 106,
+      "agent-07": 167,
+      "agent-08": 265,
+      "agent-09": 234
+    },
+    "replay_matches": true,
+    "policy_revision": "after_route_loop_fix",
+    "source_checkpoint": "artifacts/survival-loop-checkpoint.json"
+  }
+]

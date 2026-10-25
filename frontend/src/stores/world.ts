@@ -9,6 +9,7 @@ interface Store {
   cameraRequest:{position:Position;serial:number}|null
   follow:boolean;effects:boolean
   accept: (snapshot: Snapshot) => void; acceptChunks:(packet:ChunkMessage)=>void
+  mergeEvents:(runId:string,events:WorldEvent[])=>void
   select: (id: string | null) => void;focus:(position:Position)=>void
 }
 export const useWorld = create<Store>((set) => ({
@@ -29,6 +30,12 @@ export const useWorld = create<Store>((set) => ({
     const keys=Object.keys(chunks)
     keys.slice(0,Math.max(0,keys.length-48)).forEach(key=>delete chunks[key])
     return {chunks}
+  }),
+  mergeEvents:(runId,incoming)=>set(previous=>{
+    if(previous.snapshot?.run_id!==runId)return {}
+    const events=new Map(previous.events.map(event=>[event.event_id,event]))
+    incoming.forEach(event=>{if(event.run_id===runId&&event.payload.message)events.set(event.event_id,event)})
+    return {events:[...events.values()].sort((a,b)=>a.sequence_number-b.sequence_number).slice(-1500)}
   }),
   select: (selected) => set({ selected }),
   focus:position=>set(s=>({cameraRequest:{position,serial:(s.cameraRequest?.serial??0)+1}})),

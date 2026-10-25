@@ -5,6 +5,18 @@ services:
       GENESIS_DB: /data/genesis.sqlite
       GENESIS_SEED: ${GENESIS_SEED:-42}
       GENESIS_INFINITE: ${GENESIS_INFINITE:-1}
+      GENESIS_COGNITION: ${GENESIS_COGNITION:-0}
+      GENESIS_DECISION_PROVIDER: ${GENESIS_DECISION_PROVIDER:-laya}
+      GENESIS_LAYA_URL: http://laya:11437
+      GENESIS_LAYA_MODEL: ${GENESIS_LAYA_MODEL:-convaiinnovations/laya-multilingual}
+      GENESIS_OLLAMA_URL: http://ollama:11434
+      GENESIS_LOCAL_MODEL: ${GENESIS_LOCAL_MODEL:-qwen2.5:0.5b}
+      GENESIS_COGNITION_INTERVAL: ${GENESIS_COGNITION_INTERVAL:-1}
+      GENESIS_COGNITION_TTL: ${GENESIS_COGNITION_TTL:-80}
+      GENESIS_LLM_TIMEOUT: ${GENESIS_LLM_TIMEOUT:-45}
+      GENESIS_DIALOGUE_URL: ${GENESIS_DIALOGUE_URL:-}
+      GENESIS_DIALOGUE_MODEL: ${GENESIS_DIALOGUE_MODEL:-}
+      GENESIS_DIALOGUE_API_KEY: ${GENESIS_DIALOGUE_API_KEY:-}
       GENESIS_ORIGINS: ${GENESIS_ORIGINS:-http://localhost:5173}
     ports:
       - "${GENESIS_BACKEND_PORT:-8000}:8000"
@@ -15,6 +27,27 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+  laya:
+    build:
+      context: .
+      dockerfile: Dockerfile.laya
+    profiles: [cognition]
+    environment:
+      GENESIS_LAYA_MODEL: ${GENESIS_LAYA_MODEL:-convaiinnovations/laya-multilingual}
+      GENESIS_LAYA_REVISION: ${GENESIS_LAYA_REVISION:-1720e3e3357cfe1e281542e223f8273b0890ca34}
+      HF_HUB_DISABLE_XET: "1"
+    volumes:
+      - genesis-laya:/root/.cache/huggingface
+  ollama:
+    image: ollama/ollama:latest
+    profiles: [cognition]
+    environment:
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      CUDA_VISIBLE_DEVICES: "-1"
+      ROCR_VISIBLE_DEVICES: "-1"
+    volumes:
+      - genesis-models:/root/.ollama
   frontend:
     build: ./frontend
     environment:
@@ -26,3 +59,5 @@ services:
         condition: service_healthy
 volumes:
   genesis-data:
+  genesis-models:
+  genesis-laya:

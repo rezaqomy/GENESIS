@@ -8,13 +8,23 @@ from app.simulation.models.domain import (
     Action,
     AgentIntent,
     Building,
+    DesignTrial,
+    HousingKnowledge,
     Position,
+    ShelterDesign,
     Terrain,
     WorldConfig,
 )
 from app.simulation.persistence.sqlite import EventStore
 from app.simulation.policies.utility import UtilityPolicy
 from app.simulation.settlements.effects import local_effects
+
+
+def grant_tested_design(agent):
+    # Payment/migration fixtures already know a design; novice learning is tested separately.
+    agent.housing = HousingKnowledge(
+        trials=[DesignTrial(design=ShelterDesign(), tick=0, score=0.3, stood=True)]
+    )
 
 
 @pytest.fixture
@@ -64,6 +74,7 @@ def test_storage_transfers_and_capacity(settlement_engine):
 def test_build_cost_progress_shelter_and_replay(settlement_engine):
     e = settlement_engine
     a = next(iter(e.world.agents.values()))
+    grant_tested_design(a)
     a.position = Position(x=2, y=1)
     s = e.world.settlements[a.settlement_id]
     wood = s.storage.wood
@@ -77,7 +88,7 @@ def test_build_cost_progress_shelter_and_replay(settlement_engine):
     a.energy = 10
     e.tick([AgentIntent(actor_id=a.id, action=Action.REST)])
     assert a.energy > 23
-    assert local_effects(e.world, a.position)["comfort"] > 0.7
+    assert 0 < local_effects(e.world, a.position)["comfort"] < 0.7
     assert state_hash(e.store.replay(e.run_id)) == state_hash(e.world)
     assert not resolve_intent(e.world, intent, e.access)[0]
 
@@ -148,7 +159,10 @@ def test_autonomous_construction_and_deterministic_replay(settlement_engine):
             if ev.event_type == "ACTION_RESOLVED":
                 actions.add(ev.payload["action"])
     assert "BUILD" in actions and "GATHER" in actions
-    assert any(b.kind == "shelter" and b.progress == 100 for b in e.world.buildings.values())
+    # Food production may precede housing when the community reserve falls.
+    assert any(
+        b.kind in ("shelter", "farm") and b.progress == 100 for b in e.world.buildings.values()
+    )
     assert state_hash(e.world) == state_hash(e.store.replay(e.run_id))
     assert state_hash(e.world) == state_hash(e.store.replay(e.run_id, use_snapshot=True))
 
@@ -157,16 +171,32 @@ def test_crafting_refueling_and_conditional_migration(settlement_engine):
     e = settlement_engine
     w = e.world
     a = w.agents["agent-00"]
+    grant_tested_design(a)
     a.position = Position(x=-2, y=-1)
     w.buildings["bench"] = Building(
         id="bench", kind="workbench", position=Position(x=-3, y=-1), progress=100
     )
-    assert resolve_intent(w, AgentIntent(actor_id=a.id, action=Action.CRAFT, item="axe"), e.access)[
-        0
-    ]
-    assert a.inventory.tools["axe"] == 80
+    from app.simulation.engineering.invention import design_id
+    from app.simulation.models.domain import ToolDesign
+
     assert not resolve_intent(
         w, AgentIntent(actor_id=a.id, action=Action.CRAFT, item="axe"), e.access
+    )[0]
+    design = ToolDesign(core="stone", grip="wood", binding="fiber", form="edge", length=2)
+    for _ in range(3):
+        assert resolve_intent(
+            w,
+            AgentIntent(actor_id=a.id, action=Action.EXPERIMENT_TOOL, tool_design=design),
+            e.access,
+        )[0]
+    key = design_id(design)
+    a.inventory.tools[key] = 0
+    assert resolve_intent(
+        w, AgentIntent(actor_id=a.id, action=Action.CRAFT, item=key, tool_design=design), e.access
+    )[0]
+    assert a.inventory.tools[key] > 0
+    assert not resolve_intent(
+        w, AgentIntent(actor_id=a.id, action=Action.CRAFT, item=key, tool_design=design), e.access
     )[0]
     a.position = Position(x=0, y=1)
     fire = w.buildings["building-0"]
@@ -226,6 +256,16 @@ def test_distant_project_hauling_reserves_materials(settlement_engine):
     a.personality.exploration_drive = 0
     a.personality.comfort_preference = 1
     s = e.world.settlements[a.settlement_id]
+    # A locally observed unfinished farm replaces the old hard-coded, unseen farm site.
+    s.storage.food = 0
+    e.world.buildings["hauling-farm"] = Building(
+        id="hauling-farm",
+        kind="farm",
+        position=Position(x=3, y=6),
+        progress=0,
+        durability=0,
+        settlement_id=s.id,
+    )
     for i, kind in enumerate(("shelter", "shelter", "storage", "workbench")):
         b = Building(
             id=f"fixture-{i}",
@@ -253,6 +293,7 @@ def test_policy_completes_paid_remote_camp_without_second_material_charge(settle
 
     e = settlement_engine
     a = e.world.agents["agent-00"]
+    grant_tested_design(a)
     a.position = Position(x=35, y=0)
     e.world.terrain_modifications["35,0"] = Tile(
         position=a.position, terrain=Terrain.GRASS, walkable=True

@@ -1,0 +1,107 @@
+{
+  "source": "Final browser integration run, Utility fallback (GENESIS_COGNITION=0), seed42, no injected tool designs",
+  "tick": 240,
+  "agents": [
+    {
+      "id": "agent-00",
+      "name": "Ada",
+      "alive": true,
+      "trials": 4,
+      "failed_trials": 4,
+      "learned_designs": {}
+    },
+    {
+      "id": "agent-01",
+      "name": "Finn",
+      "alive": true,
+      "trials": 4,
+      "failed_trials": 4,
+      "learned_designs": {}
+    },
+    {
+      "id": "agent-02",
+      "name": "Mira",
+      "alive": true,
+      "trials": 6,
+      "failed_trials": 6,
+      "learned_designs": {}
+    },
+    {
+      "id": "agent-03",
+      "name": "Leo",
+      "alive": true,
+      "trials": 5,
+      "failed_trials": 5,
+      "learned_designs": {}
+    },
+    {
+      "id": "agent-04",
+      "name": "Nova",
+      "alive": true,
+      "trials": 5,
+      "failed_trials": 5,
+      "learned_designs": {}
+    },
+    {
+      "id": "agent-05",
+      "name": "Jude",
+      "alive": true,
+      "trials": 4,
+      "failed_trials": 4,
+      "learned_designs": {}
+    },
+    {
+      "id": "agent-06",
+      "name": "Iris",
+      "alive": true,
+      "trials": 5,
+      "failed_trials": 5,
+      "learned_designs": {}
+    },
+    {
+      "id": "agent-07",
+      "name": "Theo",
+      "alive": true,
+      "trials": 5,
+      "failed_trials": 5,
+      "learned_designs": {}
+    },
+    {
+      "id": "agent-08",
+      "name": "Luna",
+      "alive": true,
+      "trials": 9,
+      "failed_trials": 8,
+      "learned_designs": {
+        "invention:5263af32af45": {
+          "design": {
+            "core": "stone",
+            "grip": "none",
+            "binding": "none",
+            "form": "edge",
+            "length": 1,
+            "fueled": false
+          },
+          "tick": 118,
+          "performance": {
+            "cut": 0.3745,
+            "mine": 0.2247,
+            "light": 0.0
+          },
+          "feedback": [
+            "The prototype produced a useful measured effect; durability is limited."
+          ],
+          "source": "experiment"
+        }
+      }
+    },
+    {
+      "id": "agent-09",
+      "name": "Ezra",
+      "alive": true,
+      "trials": 0,
+      "failed_trials": 0,
+      "learned_designs": {}
+    }
+  ]
+}
